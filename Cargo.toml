@@ -1,6 +1,6 @@
 [package]
 name = "ill-be-backspace"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.82"
 description = "A linter that flags over-long, over-explaining comment blocks across many languages."
