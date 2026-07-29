@@ -440,12 +440,14 @@ fn group(lines: &[LineInfo], opts: &ScanOptions) -> Vec<CommentBlock> {
 
         // A comment trailing code on the same line stands alone.
         if !line.is_block_joinable() {
+            let following = count_following_code(lines, i, true);
             out.push(CommentBlock {
                 start_line: i as u32 + 1,
                 end_line: i as u32 + 1,
                 text: vec![piece.text.clone()],
                 kind: piece.kind,
-                following_code_lines: count_following_code(lines, i, true),
+                following_code_lines: following.len() as u32,
+                following_code: following,
                 column: piece.column,
             });
             i += 1;
@@ -477,12 +479,14 @@ fn group(lines: &[LineInfo], opts: &ScanOptions) -> Vec<CommentBlock> {
             }
         }
 
+        let following = count_following_code(lines, end, false);
         out.push(CommentBlock {
             start_line: i as u32 + 1,
             end_line: end as u32 + 1,
             text,
             kind: lines[i].comment.as_ref().unwrap().kind,
-            following_code_lines: count_following_code(lines, end, false),
+            following_code_lines: following.len() as u32,
+            following_code: following,
             column: piece.column,
         });
         i = j;
@@ -491,7 +495,7 @@ fn group(lines: &[LineInfo], opts: &ScanOptions) -> Vec<CommentBlock> {
     out
 }
 
-fn count_following_code(lines: &[LineInfo], end: usize, code_on_end_line: bool) -> u32 {
+fn count_following_code(lines: &[LineInfo], end: usize, code_on_end_line: bool) -> Vec<String> {
     let mut k = if code_on_end_line { end } else { end + 1 };
     if !code_on_end_line {
         // One blank line between a comment and the code it describes is ordinary
@@ -500,13 +504,13 @@ fn count_following_code(lines: &[LineInfo], end: usize, code_on_end_line: bool) 
             k += 1;
         }
     }
-    let mut n = 0;
+    let mut out = Vec::new();
     while let Some(l) = lines.get(k) {
         if !l.has_code || (l.comment.is_some() && !code_on_end_line) {
             break;
         }
-        n += 1;
+        out.push(l.code_text.trim().to_string());
         k += 1;
     }
-    n
+    out
 }

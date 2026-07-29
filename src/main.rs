@@ -193,6 +193,8 @@ fn value_of(c: &backspace::config::ResolvedConfig, key: &str) -> String {
         "merge_across_blank_lines" => c.merge_across_blank_lines.to_string(),
         "max_ratio" => format!("{:.2}", c.max_ratio),
         "ratio_min_lines" => c.ratio_min_lines.to_string(),
+        "restate_threshold" => format!("{:.2}", c.restate_threshold),
+        "restate_min_words" => c.restate_min_words.to_string(),
         "banned_phrases" => format!("{} pattern(s)", c.banned_phrases.len()),
         "select" => c.select.iter().cloned().collect::<Vec<_>>().join(","),
         "ignore" => c.ignore.iter().cloned().collect::<Vec<_>>().join(","),

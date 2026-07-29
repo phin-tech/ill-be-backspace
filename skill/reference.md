@@ -6,6 +6,7 @@
 |---|---|---|
 | `block-too-long` | a comment block exceeds a budget | `max_lines` (5), `max_words` (off), `max_chars` (off) |
 | `comment-code-ratio` | comment lines / following code lines exceeds a ratio | `max_ratio` (1.5), `ratio_min_lines` (3) |
+| `comment-restates-code` | the comment's words are mostly drawn from the code below it | `threshold` (0.8), `min_words` (6) — **off by default** |
 | `banned-phrase` | comment text matches a word or regex | `words`, `preset`, `extend`, `patterns` |
 | `suppression-needs-reason` | a suppression directive has no justification | `require_suppression_reason` (false) |
 
@@ -70,6 +71,10 @@ max_lines = 5
 [rules.comment-code-ratio]
 max_ratio = 1.5
 ratio_min_lines = 3
+
+[rules.comment-restates-code]      # off unless added to `select`
+threshold = 0.8                    # vocabulary overlap that counts as restating
+min_words = 6                      # shorter comments are not judged
 
 [rules.banned-phrase]
 preset = "llm-tells"               # the only preset; omit for none

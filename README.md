@@ -100,12 +100,13 @@ $ backspace --stats               # who's the worst offender?
 Exit codes are `0` clean, `1` violations, `2` you've configured something
 strange. Your CI will know exactly what to do.
 
-## Three Rules. That's All It Takes.
+## Four Rules. That's All It Takes.
 
 | Rule | What it catches |
 |---|---|
 | `block-too-long` | More than `max_lines` (5) consecutive lines of comment. |
 | `comment-code-ratio` | A comment longer than the code beneath it. **This is the one that finds the real offenders.** |
+| `comment-restates-code` | A comment that only says what the code already says. **Opt-in** — see below. |
 | `banned-phrase` | Words and regexes you pick — see below. There's an `llm-tells` preset for `Verified 2026-…`, `Note that`, `it does NOT`, and friends. Opt-in — we're not here to preach. |
 
 `backspace explain <rule>` if you want the long version.
@@ -130,6 +131,39 @@ max_lines = 8          # licence headers, we understand
 paths = ["tests/**"]
 max_lines = 15         # tests get a little room to breathe
 ```
+
+## The Comment That Says Nothing
+
+Here's the one that goes right for the throat:
+
+```python
+# increment the retry counter
+retry_counter += 1
+```
+
+That comment has no job. `comment-restates-code` catches it by splitting the
+identifiers below into words — `retry_counter` becomes `retry` + `counter` —
+and measuring how much of the comment's vocabulary was already sitting there
+in the code.
+
+Turn it on:
+
+```toml
+select = ["block-too-long", "comment-code-ratio", "comment-restates-code"]
+
+[rules.comment-restates-code]
+threshold = 0.8      # overlap at or above this counts as restating
+min_words = 6        # shorter comments have too little to measure
+```
+
+It skips section banners, code samples and data shapes, because those name the
+code on purpose.
+
+**Why it's opt-in.** A good "why" comment *has* to name the things it's talking
+about, so it picks up overlap honestly. Tuned against ~7,400 real files it
+fires about fifteen times, and a couple of those are arguable. It's a sharp
+tool with a real false-positive rate, not a safe default — which is why you
+have to ask for it.
 
 ## Ban Your Own Words
 
@@ -230,7 +264,7 @@ Two things it's honest about: JavaScript regex-literal detection and Python
 docstring position are heuristics, not a parser. They're tested against the
 cases that matter and documented where they aren't perfect.
 
-215 tests. It passes its own lint. We wouldn't dare ship it otherwise.
+243 tests. It passes its own lint. We wouldn't dare ship it otherwise.
 
 ## Contributing
 

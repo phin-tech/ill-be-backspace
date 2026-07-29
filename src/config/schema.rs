@@ -83,6 +83,8 @@ pub struct PathOverride {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RulesSection {
+    #[serde(rename = "comment-restates-code")]
+    pub comment_restates_code: Option<RestateRule>,
     #[serde(rename = "block-too-long")]
     pub block_too_long: Option<LengthRule>,
     #[serde(rename = "comment-code-ratio")]
@@ -97,6 +99,15 @@ pub struct LengthRule {
     pub max_lines: Option<usize>,
     pub max_words: Option<usize>,
     pub max_chars: Option<usize>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RestateRule {
+    /// Overlap at or above this fraction counts as restating the code.
+    pub threshold: Option<f64>,
+    /// Comments with fewer content words than this are not judged.
+    pub min_words: Option<usize>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

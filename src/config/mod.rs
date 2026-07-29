@@ -109,6 +109,12 @@ pub struct ResolvedConfig {
     pub max_ratio: f64,
     pub ratio_min_lines: usize,
 
+    /// Fraction of a comment's content words that may also appear in the code
+    /// it describes before the comment counts as restating it.
+    pub restate_threshold: f64,
+    /// Comments shorter than this have too little vocabulary to judge.
+    pub restate_min_words: usize,
+
     pub banned_phrases: Vec<crate::rules::Phrase>,
 
     pub select: BTreeSet<String>,
@@ -127,6 +133,8 @@ impl Default for ResolvedConfig {
             merge_across_blank_lines: true,
             max_ratio: 1.5,
             ratio_min_lines: 3,
+            restate_threshold: 0.8,
+            restate_min_words: 6,
             banned_phrases: Vec::new(),
             select: ["block-too-long", "comment-code-ratio"]
                 .iter()
@@ -386,6 +394,8 @@ const TRACKED_KEYS: &[&str] = &[
     "merge_across_blank_lines",
     "max_ratio",
     "ratio_min_lines",
+    "restate_threshold",
+    "restate_min_words",
     "banned_phrases",
     "select",
     "ignore",
@@ -449,6 +459,10 @@ fn apply(rc: &mut ResolvedConfig, s: &Settings, layer: Layer, prov: &mut Provena
             rc.max_chars = l.max_chars;
             prov.set("max_chars", layer);
         }
+    }
+    if let Some(x) = &r.comment_restates_code {
+        set!(rc, prov, layer, restate_threshold, x.threshold);
+        set!(rc, prov, layer, restate_min_words, x.min_words);
     }
     if let Some(x) = &r.comment_code_ratio {
         set!(rc, prov, layer, max_ratio, x.max_ratio);

@@ -1,5 +1,7 @@
 //! The checks applied to each comment block.
 
+pub mod restate;
+
 use std::path::PathBuf;
 
 use regex::Regex;
@@ -10,6 +12,7 @@ use crate::scan::CommentBlock;
 pub const BLOCK_TOO_LONG: &str = "block-too-long";
 pub const COMMENT_CODE_RATIO: &str = "comment-code-ratio";
 pub const BANNED_PHRASE: &str = "banned-phrase";
+pub const COMMENT_RESTATES_CODE: &str = "comment-restates-code";
 pub const SUPPRESSION_NEEDS_REASON: &str = "suppression-needs-reason";
 
 /// Every rule id the tool knows about, for `--select` validation and `explain`.
@@ -17,6 +20,7 @@ pub const ALL_RULES: &[&str] = &[
     BLOCK_TOO_LONG,
     COMMENT_CODE_RATIO,
     BANNED_PHRASE,
+    COMMENT_RESTATES_CODE,
     SUPPRESSION_NEEDS_REASON,
 ];
 
@@ -144,7 +148,34 @@ pub(crate) fn check_block(
     if cfg.rule_enabled(BANNED_PHRASE) {
         out.extend(banned_phrase(block, text, cfg, ctx));
     }
+    if cfg.rule_enabled(COMMENT_RESTATES_CODE) {
+        out.extend(comment_restates_code(block, text, cfg));
+    }
     out
+}
+
+fn comment_restates_code(
+    block: &CommentBlock,
+    text: &[String],
+    cfg: &ResolvedConfig,
+) -> Option<Violation> {
+    let score = restate::overlap(text, &block.following_code, cfg.restate_min_words)?;
+    if score < cfg.restate_threshold {
+        return None;
+    }
+    Some(violation(
+        COMMENT_RESTATES_CODE,
+        block,
+        text,
+        cfg,
+        format!(
+            "{:.0}% of the comment's words already appear in the code it describes",
+            score * 100.0
+        ),
+        "This comment names what the code names. Either delete it, or replace \
+         it with the reason the code is written this way."
+            .to_string(),
+    ))
 }
 
 fn violation(
@@ -306,6 +337,12 @@ pub fn explain(rule: &str) -> Option<&'static str> {
         BANNED_PHRASE => {
             "Flags comments matching configured regexes. The `llm-tells` preset \
              targets phrasing that narrates rather than informs."
+        }
+        COMMENT_RESTATES_CODE => {
+            "Flags a comment whose vocabulary is mostly drawn from the code \
+             beneath it. Identifiers are split on case and underscores before \
+             comparison. Controlled by `restate_threshold` and \
+             `restate_min_words`; off by default."
         }
         SUPPRESSION_NEEDS_REASON => {
             "Fires when `require_suppression_reason` is set and a `backspace: \

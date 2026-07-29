@@ -538,3 +538,103 @@ mod banned_words {
         assert_eq!(v.len(), 2);
     }
 }
+
+mod comment_restates_code {
+    use super::*;
+
+    /// `min_words` is lowered so the examples can stay short and readable; the
+    /// shipped default of 6 needs more prose than a doc example wants.
+    fn restates_only() -> ResolvedConfig {
+        ResolvedConfig {
+            select: ["comment-restates-code"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            restate_min_words: 2,
+            restate_threshold: 0.6,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn flags_a_comment_that_names_what_the_code_names() {
+        let src = "# increment the retry counter\nretry_counter += 1\n";
+        assert_eq!(
+            rule_ids(&check(src, "python", &restates_only())),
+            ["comment-restates-code"]
+        );
+    }
+
+    #[test]
+    fn splits_snake_case_identifiers() {
+        let src = "# set the user name\nuser_name = value\n";
+        assert_eq!(check(src, "python", &restates_only()).len(), 1);
+    }
+
+    #[test]
+    fn splits_camel_case_identifiers() {
+        let src = "// update the item count\nupdateItemCount();\n";
+        assert_eq!(check(src, "typescript", &restates_only()).len(), 1);
+    }
+
+    #[test]
+    fn leaves_a_comment_that_adds_information() {
+        // Explains *why*; shares almost no vocabulary with the code.
+        let src = "# Upstream returns 502 on cold start.\nfetch(url, retries=1)\n";
+        assert!(check(src, "python", &restates_only()).is_empty());
+    }
+
+    #[test]
+    fn leaves_a_comment_naming_a_constraint_the_code_cannot_state() {
+        let src = "// Buffered so a slow producer cannot stall.\nch := make(chan int, 64)\n";
+        assert!(check(src, "go", &restates_only()).is_empty());
+    }
+
+    #[test]
+    fn ignores_very_short_comments() {
+        // `# TODO` has nothing to measure.
+        assert!(check("# todo\nx = 1\n", "python", &restates_only()).is_empty());
+    }
+
+    #[test]
+    fn ignores_a_comment_with_no_code_beneath_it() {
+        assert!(check(
+            "x = 1\n\n# a note about the thing\n",
+            "python",
+            &restates_only()
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn stopwords_do_not_inflate_the_overlap() {
+        // Only `frobnicate` is a content word, and it is absent from the code.
+        let src = "# it is the one that we frobnicate\nx = 1\n";
+        assert!(check(src, "python", &restates_only()).is_empty());
+    }
+
+    #[test]
+    fn the_threshold_is_configurable() {
+        let src = "# increment the retry counter\nretry_counter += 1\n";
+        let strict = ResolvedConfig {
+            restate_threshold: 0.99,
+            ..restates_only()
+        };
+        assert!(check(src, "python", &strict).is_empty());
+    }
+
+    #[test]
+    fn message_reports_the_overlap() {
+        let src = "# set the user name\nuser_name = value\n";
+        let v = check(src, "python", &restates_only());
+        assert!(v[0].message.contains('%'), "{}", v[0].message);
+    }
+
+    #[test]
+    fn is_off_by_default() {
+        let src = "# increment the retry counter\nretry_counter += 1\n";
+        let found = check(src, "python", &ResolvedConfig::default());
+        let ids = rule_ids(&found);
+        assert!(!ids.contains(&"comment-restates-code"), "{ids:?}");
+    }
+}

@@ -503,3 +503,35 @@ mod unicode {
         assert_eq!(b[0].column, 10);
     }
 }
+
+mod following_code_text {
+    use super::*;
+
+    #[test]
+    fn captures_the_code_the_comment_sits_above() {
+        let b = blocks("# c\nretry_counter += 1\nsend()\n", "python");
+        assert_eq!(b[0].following_code, ["retry_counter += 1", "send()"]);
+    }
+
+    #[test]
+    fn stops_at_a_blank_line_like_the_count_does() {
+        let b = blocks("# c\nx = 1\n\ny = 2\n", "python");
+        assert_eq!(b[0].following_code, ["x = 1"]);
+        assert_eq!(
+            b[0].following_code_lines as usize,
+            b[0].following_code.len()
+        );
+    }
+
+    #[test]
+    fn is_empty_when_no_code_follows() {
+        let b = blocks("x = 1\n# trailing\n", "python");
+        assert!(b[0].following_code.is_empty());
+    }
+
+    #[test]
+    fn excludes_the_comment_text_itself() {
+        let b = blocks("x = 1  # note\n", "python");
+        assert_eq!(b[0].following_code, ["x = 1"]);
+    }
+}

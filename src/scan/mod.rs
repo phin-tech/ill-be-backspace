@@ -27,6 +27,9 @@ pub struct CommentBlock {
     /// Non-blank code lines following the block, up to the next blank line or
     /// comment. Input to the comment:code ratio rule.
     pub following_code_lines: u32,
+    /// The text of those lines, so a rule can compare the comment's vocabulary
+    /// against the code it describes.
+    pub following_code: Vec<String>,
     /// Column of the first comment marker, 1-indexed. Used for reporting.
     pub column: u32,
 }
