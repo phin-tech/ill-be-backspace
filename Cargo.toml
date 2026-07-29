@@ -11,6 +11,8 @@ readme = "README.md"
 keywords = ["linter", "comments", "pre-commit", "static-analysis"]
 categories = ["development-tools", "command-line-utilities"]
 exclude = ["/tests/fixtures", "/.github"]
+# Distributed via PyPI wheels, Homebrew and GitHub Releases, not crates.io.
+publish = false
 
 [lib]
 name = "backspace"
