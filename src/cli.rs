@@ -58,6 +58,10 @@ pub struct CheckArgs {
     #[arg(long)]
     pub max_chars: Option<usize>,
 
+    /// Maximum words on any single comment line. Catches the one-line essay.
+    #[arg(long)]
+    pub max_line_words: Option<usize>,
+
     /// Maximum ratio of comment lines to the code lines they precede.
     #[arg(long)]
     pub max_ratio: Option<f64>,
@@ -104,6 +108,11 @@ pub struct CheckArgs {
     /// Report findings but always exit 0.
     #[arg(long, value_name = "LEVEL")]
     pub severity: Option<SeverityArg>,
+
+    /// List every comment instead of checking it. Always exits 0 — this is a
+    /// review aid, not a gate. Pair with --diff to review only what you changed.
+    #[arg(long)]
+    pub audit: bool,
 
     /// Print counts by rule and language.
     #[arg(long)]

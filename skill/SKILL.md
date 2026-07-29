@@ -1,10 +1,10 @@
 ---
 name: backspace
 description: >
-  Check source comments for over-long, over-explaining comment blocks, and guidance
-  on writing proportionate comments. Use when writing or reviewing code comments,
-  when the user mentions comment bloat or verbose comments, or when they mention
-  backspace.
+  Check source comments for over-long, over-explaining or redundant comments, and
+  guidance on writing proportionate ones. Use when writing or reviewing code
+  comments, when re-reading comments you just wrote, when the user mentions comment
+  bloat or verbose comments, or when they mention backspace.
 ---
 
 # Writing comments that survive
@@ -26,6 +26,11 @@ Comment the invariant a reader cannot derive from the code.
   needs a named function instead.
 - **One fact per comment.** Contrasting what something does with what it does
   not do usually means two separate things need names.
+- **A single line can over-explain too.** Length is not only about line count.
+  If one line needs more than a dozen words, it is usually narrating the code
+  rather than adding to it. Real single-line comments run about seven words.
+- **Never restate the identifiers.** `# increment the retry counter` above
+  `retry_counter += 1` uses the code's own vocabulary and adds nothing.
 
 Rewriting the example above:
 
@@ -45,11 +50,30 @@ backspace <files> --json     # machine-readable, includes the comment text
 
 Exit codes: `0` clean, `1` violations, `2` bad usage or config.
 
+## Reviewing your own comments
+
+After writing code, re-read what you wrote:
+
+```bash
+backspace --diff --audit --json
+```
+
+This lists every comment the change introduced and always exits 0. Use it to
+check each one against the guidance above before handing the work over.
+
 ## Reading a finding
 
-Each violation names a rule: `block-too-long` (too many lines),
-`comment-code-ratio` (longer than the code beneath it), `banned-phrase`
-(matched a configured pattern). `backspace explain <rule>` describes any of them.
+Each violation names a rule:
+
+| rule | what it means |
+|---|---|
+| `block-too-long` | too many lines, words, or words on one line |
+| `comment-code-ratio` | the comment is longer than the code beneath it |
+| `comment-restates-code` | the comment's words already appear in that code |
+| `banned-phrase` | matched a configured word or pattern |
+| `suppression-needs-reason` | an `ignore` directive with no justification |
+
+`backspace explain <rule>` describes any of them in full.
 
 ## When a long comment is genuinely right
 

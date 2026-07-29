@@ -413,3 +413,97 @@ mod dogfood {
         );
     }
 }
+
+mod audit_mode {
+    use super::*;
+
+    const SRC: &str = "# first note\nx = 1\n\n# second note\n# continues here\ny = 2\n";
+
+    #[test]
+    fn lists_every_comment_and_exits_zero() {
+        let dir = project(&[("a.py", SRC)]);
+        let out = bin()
+            .arg(dir.path())
+            .args(["--all", "--audit"])
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "audit must never fail the run");
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert!(text.contains("first note"), "{text}");
+        assert!(text.contains("second note"), "{text}");
+    }
+
+    #[test]
+    fn exits_zero_even_when_comments_would_violate() {
+        let dir = project(&[("a.py", &"# c\n".repeat(20))]);
+        bin()
+            .arg(dir.path())
+            .args(["--all", "--audit"])
+            .assert()
+            .success();
+    }
+
+    #[test]
+    fn json_audit_reports_each_comment_with_its_location() {
+        let dir = project(&[("a.py", SRC)]);
+        let out = bin()
+            .arg(dir.path())
+            .args(["--all", "--audit", "--json"])
+            .output()
+            .unwrap();
+        let v: serde_json::Value =
+            serde_json::from_str(&String::from_utf8_lossy(&out.stdout)).expect("valid JSON");
+        let comments = v["comments"].as_array().expect("comments array");
+        assert_eq!(comments.len(), 2);
+        assert_eq!(comments[0]["start_line"], 1);
+        assert_eq!(comments[0]["line_count"], 1);
+        assert_eq!(comments[1]["line_count"], 2);
+        assert!(comments[0]["language"] == "python");
+    }
+
+    #[test]
+    fn reports_word_counts_so_a_reviewer_can_spot_the_wordy_ones() {
+        let dir = project(&[("a.py", "# one two three four five\nx = 1\n")]);
+        let out = bin()
+            .arg(dir.path())
+            .args(["--all", "--audit", "--json"])
+            .output()
+            .unwrap();
+        let v: serde_json::Value =
+            serde_json::from_str(&String::from_utf8_lossy(&out.stdout)).unwrap();
+        assert_eq!(v["comments"][0]["words"], 5);
+    }
+
+    #[test]
+    fn docstrings_are_listed_only_when_included() {
+        let src = "def f():\n    \"\"\"Docs here.\"\"\"\n    return 1\n";
+        let dir = project(&[("a.py", src)]);
+        let count = |args: &[&str]| -> usize {
+            let out = bin().arg(dir.path()).args(args).output().unwrap();
+            let v: serde_json::Value =
+                serde_json::from_str(&String::from_utf8_lossy(&out.stdout)).unwrap();
+            v["comments"].as_array().unwrap().len()
+        };
+        assert_eq!(count(&["--all", "--audit", "--json"]), 0);
+        assert_eq!(
+            count(&["--all", "--audit", "--json", "--include-docstrings"]),
+            1
+        );
+    }
+}
+
+mod line_word_budget {
+    use super::*;
+
+    #[test]
+    fn max_line_words_flag_catches_a_one_line_essay() {
+        let src = "# Set the user's name to the provided value if it is not None otherwise keep it\nx = 1\n";
+        let dir = project(&[("a.py", src)]);
+        bin().arg(dir.path()).arg("--all").assert().success();
+        bin()
+            .arg(dir.path())
+            .args(["--all", "--max-line-words", "12"])
+            .assert()
+            .code(1);
+    }
+}

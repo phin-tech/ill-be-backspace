@@ -638,3 +638,72 @@ mod comment_restates_code {
         assert!(!ids.contains(&"comment-restates-code"), "{ids:?}");
     }
 }
+
+mod max_line_words {
+    use super::*;
+
+    /// One line that over-explains, and one that does its job.
+    const WORDY: &str = "# Set the user's name to the provided value if it is not None, otherwise keep the existing one.\nuser.name = name\n";
+    const TERSE: &str = "# Cached: the upstream rate-limits at 10rps.\nreturn fetch(x)\n";
+
+    fn per_line(n: usize) -> ResolvedConfig {
+        ResolvedConfig {
+            max_line_words: Some(n),
+            select: ["block-too-long"].iter().map(|s| s.to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn is_off_by_default() {
+        assert!(check(WORDY, "python", &length_only(5)).is_empty());
+    }
+
+    #[test]
+    fn flags_a_single_line_that_runs_long() {
+        assert_eq!(
+            rule_ids(&check(WORDY, "python", &per_line(12))),
+            ["block-too-long"]
+        );
+    }
+
+    #[test]
+    fn leaves_a_terse_single_line_alone() {
+        assert!(check(TERSE, "python", &per_line(12)).is_empty());
+    }
+
+    #[test]
+    fn measures_per_line_not_per_block() {
+        // Five short lines total well over the budget, but no single line does.
+        let src = "# alpha beta gamma\n# delta epsilon zeta\n# eta theta iota\n# kappa lambda mu\n# nu xi omicron\nx = 1\n";
+        assert!(check(src, "python", &per_line(12)).is_empty());
+    }
+
+    #[test]
+    fn catches_one_bloated_line_inside_a_short_block() {
+        let src = "# short\n# this particular line goes on and on and on and on and well past the budget\nx = 1\n";
+        assert_eq!(check(src, "python", &per_line(12)).len(), 1);
+    }
+
+    #[test]
+    fn message_reports_the_word_count_and_budget() {
+        let v = check(WORDY, "python", &per_line(12));
+        assert!(v[0].message.contains("12"), "{}", v[0].message);
+        assert!(
+            v[0].message.to_lowercase().contains("word"),
+            "{}",
+            v[0].message
+        );
+    }
+
+    #[test]
+    fn the_block_budget_still_works_independently() {
+        let cfg = ResolvedConfig {
+            max_words: Some(5),
+            ..per_line(100)
+        };
+        // Six words across the block, none on a single line near the budget.
+        let src = "# alpha beta gamma\n# delta epsilon zeta\nx = 1\n";
+        assert_eq!(check(src, "python", &cfg).len(), 1);
+    }
+}

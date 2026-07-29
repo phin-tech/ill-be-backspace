@@ -237,3 +237,101 @@ fn plural(n: usize) -> &'static str {
         "s"
     }
 }
+
+/// `--audit`: every comment in scope, for a human or an agent to re-read.
+/// Never a pass/fail judgement, so it carries no severity and no rule id.
+pub fn write_audit(out: &mut impl Write, report: &Report, format: Format) -> Result<()> {
+    match format {
+        Format::Json => audit_json(out, report),
+        _ => audit_text(out, report),
+    }
+}
+
+fn audit_text(out: &mut impl Write, report: &Report) -> Result<()> {
+    let dim = Style::new().fg_color(Some(AnsiColor::BrightBlack.into()));
+    let bold = Style::new().bold();
+
+    for c in &report.comments {
+        writeln!(
+            out,
+            "{bold}{}:{}{bold:#} {dim}({}, {} line{}, {} word{}){dim:#}",
+            c.path.display(),
+            c.start_line,
+            c.kind,
+            c.text.len(),
+            plural(c.text.len()),
+            c.words,
+            plural(c.words),
+        )?;
+        for (i, line) in c.text.iter().enumerate() {
+            writeln!(out, "{dim}{:>5} |{dim:#} {line}", c.start_line as usize + i)?;
+        }
+        writeln!(out)?;
+    }
+
+    let n = report.comments.len();
+    writeln!(
+        out,
+        "{} file{} checked, {n} comment{}",
+        report.files_checked,
+        plural(report.files_checked),
+        plural(n)
+    )?;
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct AuditReport<'a> {
+    version: u32,
+    mode: &'a str,
+    summary: AuditSummary,
+    comments: Vec<AuditComment<'a>>,
+}
+
+#[derive(Serialize)]
+struct AuditSummary {
+    files_checked: usize,
+    comments: usize,
+}
+
+#[derive(Serialize)]
+struct AuditComment<'a> {
+    file: String,
+    language: &'a str,
+    kind: &'a str,
+    start_line: u32,
+    end_line: u32,
+    line_count: usize,
+    words: usize,
+    following_code_lines: u32,
+    text: &'a [String],
+}
+
+fn audit_json(out: &mut impl Write, report: &Report) -> Result<()> {
+    let doc = AuditReport {
+        version: 1,
+        mode: "audit",
+        summary: AuditSummary {
+            files_checked: report.files_checked,
+            comments: report.comments.len(),
+        },
+        comments: report
+            .comments
+            .iter()
+            .map(|c| AuditComment {
+                file: c.path.display().to_string(),
+                language: &c.language,
+                kind: c.kind,
+                start_line: c.start_line,
+                end_line: c.end_line,
+                line_count: c.text.len(),
+                words: c.words,
+                following_code_lines: c.following_code_lines,
+                text: &c.text,
+            })
+            .collect(),
+    };
+    serde_json::to_writer_pretty(&mut *out, &doc)?;
+    writeln!(out)?;
+    Ok(())
+}

@@ -15,6 +15,7 @@ pub struct Settings {
     pub max_lines: Option<usize>,
     pub max_words: Option<usize>,
     pub max_chars: Option<usize>,
+    pub max_line_words: Option<usize>,
     pub include_docstrings: Option<bool>,
     pub merge_across_blank_lines: Option<bool>,
     pub severity: Option<Severity>,
@@ -30,6 +31,7 @@ pub struct ConfigFile {
     pub max_lines: Option<usize>,
     pub max_words: Option<usize>,
     pub max_chars: Option<usize>,
+    pub max_line_words: Option<usize>,
     pub include_docstrings: Option<bool>,
     pub merge_across_blank_lines: Option<bool>,
     pub severity: Option<Severity>,
@@ -51,6 +53,7 @@ impl ConfigFile {
             max_lines: self.max_lines,
             max_words: self.max_words,
             max_chars: self.max_chars,
+            max_line_words: self.max_line_words,
             include_docstrings: self.include_docstrings,
             merge_across_blank_lines: self.merge_across_blank_lines,
             severity: self.severity,
@@ -99,6 +102,7 @@ pub struct LengthRule {
     pub max_lines: Option<usize>,
     pub max_words: Option<usize>,
     pub max_chars: Option<usize>,
+    pub max_line_words: Option<usize>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

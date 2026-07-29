@@ -85,6 +85,7 @@ pub struct CliOverrides {
     pub max_lines: Option<usize>,
     pub max_words: Option<usize>,
     pub max_chars: Option<usize>,
+    pub max_line_words: Option<usize>,
     pub max_ratio: Option<f64>,
     pub include_docstrings: Option<bool>,
     pub severity: Option<Severity>,
@@ -98,8 +99,12 @@ pub struct ResolvedConfig {
     pub max_lines: usize,
     /// Optional prose-volume budgets, for the single very long wrapped line that
     /// a line-count budget cannot see.
+    /// Budgets for the block as a whole.
     pub max_words: Option<usize>,
     pub max_chars: Option<usize>,
+    /// Budget for any single line. Catches the one-line essay, which a block
+    /// budget cannot express without also flagging legitimate long blocks.
+    pub max_line_words: Option<usize>,
 
     /// Docstrings and doc comments are legitimate API documentation and often
     /// long, so they are exempt unless explicitly opted in.
@@ -129,6 +134,7 @@ impl Default for ResolvedConfig {
             max_lines: 5,
             max_words: None,
             max_chars: None,
+            max_line_words: None,
             include_docstrings: false,
             merge_across_blank_lines: true,
             max_ratio: 1.5,
@@ -390,6 +396,7 @@ const TRACKED_KEYS: &[&str] = &[
     "max_lines",
     "max_words",
     "max_chars",
+    "max_line_words",
     "include_docstrings",
     "merge_across_blank_lines",
     "max_ratio",
@@ -439,6 +446,10 @@ fn apply(rc: &mut ResolvedConfig, s: &Settings, layer: Layer, prov: &mut Provena
         rc.max_chars = s.max_chars;
         prov.set("max_chars", layer);
     }
+    if s.max_line_words.is_some() {
+        rc.max_line_words = s.max_line_words;
+        prov.set("max_line_words", layer);
+    }
     if let Some(v) = &s.select {
         rc.select = v.iter().cloned().collect();
         prov.set("select", layer);
@@ -458,6 +469,10 @@ fn apply(rc: &mut ResolvedConfig, s: &Settings, layer: Layer, prov: &mut Provena
         if l.max_chars.is_some() {
             rc.max_chars = l.max_chars;
             prov.set("max_chars", layer);
+        }
+        if l.max_line_words.is_some() {
+            rc.max_line_words = l.max_line_words;
+            prov.set("max_line_words", layer);
         }
     }
     if let Some(x) = &r.comment_restates_code {
@@ -507,6 +522,10 @@ fn apply_cli(rc: &mut ResolvedConfig, cli: &CliOverrides, prov: &mut Provenance)
     if cli.max_chars.is_some() {
         rc.max_chars = cli.max_chars;
         prov.set("max_chars", layer);
+    }
+    if cli.max_line_words.is_some() {
+        rc.max_line_words = cli.max_line_words;
+        prov.set("max_line_words", layer);
     }
     if !cli.select.is_empty() {
         rc.select = cli.select.iter().cloned().collect();

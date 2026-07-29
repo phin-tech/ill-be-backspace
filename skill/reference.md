@@ -4,7 +4,7 @@
 
 | id | fires when | key settings |
 |---|---|---|
-| `block-too-long` | a comment block exceeds a budget | `max_lines` (5), `max_words` (off), `max_chars` (off) |
+| `block-too-long` | a comment block exceeds a budget | `max_lines` (5), `max_words` (off), `max_chars` (off), `max_line_words` (off) |
 | `comment-code-ratio` | comment lines / following code lines exceeds a ratio | `max_ratio` (1.5), `ratio_min_lines` (3) |
 | `comment-restates-code` | the comment's words are mostly drawn from the code below it | `threshold` (0.8), `min_words` (6) — **off by default** |
 | `banned-phrase` | comment text matches a word or regex | `words`, `preset`, `extend`, `patterns` |
@@ -54,8 +54,9 @@ layer produced it.
 
 ```toml
 max_lines = 5
-max_words = 40                     # optional
-max_chars = 300                    # optional
+max_words = 40                     # optional, whole block
+max_chars = 300                    # optional, whole block
+max_line_words = 12                # optional, any single line
 include_docstrings = false
 merge_across_blank_lines = true    # a blank line does not split a comment block
 require_suppression_reason = false
@@ -114,6 +115,8 @@ backspace [PATHS...] [--max-lines N] [--max-ratio F] [--max-words N] [--max-char
           [--format text|github|json] [--json] [--severity error|warning]
           [--stats] [--fail-on-unknown] [--jobs N]
 
+backspace [PATHS...] --audit        # list comments, never fails
+
 backspace config show <PATH>
 backspace languages
 backspace explain <RULE>
@@ -147,3 +150,30 @@ backspace explain <RULE>
 
 `comment` carries the offending text, so a consumer can rewrite the comment
 without re-reading the file.
+
+## Audit output
+
+`--audit --json` reports every comment rather than every violation, and always
+exits 0:
+
+```json
+{
+  "version": 1,
+  "mode": "audit",
+  "summary": { "files_checked": 1, "comments": 2 },
+  "comments": [
+    {
+      "file": "src/api.py",
+      "language": "python",
+      "kind": "line",
+      "start_line": 41, "end_line": 41,
+      "line_count": 1,
+      "words": 18,
+      "following_code_lines": 1,
+      "text": ["Set the user's name to the provided value if it is not None…"]
+    }
+  ]
+}
+```
+
+Pair with `--diff` to review only the comments the current change introduced.

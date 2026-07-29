@@ -72,7 +72,7 @@ That's it. That's the product. And folks, it is **fast**.
 ```yaml
 repos:
   - repo: https://github.com/phin-tech/ill-be-backspace
-    rev: v0.1.2
+    rev: v0.1.3
     hooks:
       - id: backspace
 ```
@@ -131,6 +131,47 @@ max_lines = 8          # licence headers, we understand
 paths = ["tests/**"]
 max_lines = 15         # tests get a little room to breathe
 ```
+
+## The One-Line Essay
+
+A block budget can't catch this, because it's one line:
+
+```python
+# Set the user's name to the provided value if it is not None, otherwise keep the existing one.
+user.name = name or user.name
+```
+
+`max_line_words` measures each line on its own:
+
+```toml
+max_line_words = 12
+```
+
+Twelve is not a number I made up. Across 907 real single-line comments, the
+median is **7 words** and the 95th percentile is **12** — so this flags the top
+3% and leaves everything else alone. Terse comments like
+`# Cached: the upstream rate-limits at 10rps.` sail straight through.
+
+## Just Show Me What I Wrote
+
+Sometimes you don't want a verdict, you want a look. `--audit` lists every
+comment and **always exits 0**:
+
+```console
+$ backspace --diff --audit
+src/api.py:41 (line, 1 line, 18 words)
+   41 | Set the user's name to the provided value if it is not None, otherwise…
+
+src/api.py:58 (line, 2 lines, 9 words)
+   58 | Retry once: the upstream 502s on cold start.
+   59 | Anything longer and the client has already timed out.
+
+1 file checked, 2 comments
+```
+
+Pair it with `--json` and hand it to your agent: "here is every comment you
+just added, go read them again." That's a review aid, not a gate — which is
+why it never fails a build.
 
 ## The Comment That Says Nothing
 
@@ -264,7 +305,7 @@ Two things it's honest about: JavaScript regex-literal detection and Python
 docstring position are heuristics, not a parser. They're tested against the
 cases that matter and documented where they aren't perfect.
 
-243 tests. It passes its own lint. We wouldn't dare ship it otherwise.
+256 tests. It passes its own lint. We wouldn't dare ship it otherwise.
 
 ## Contributing
 

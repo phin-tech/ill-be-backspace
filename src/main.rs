@@ -58,11 +58,17 @@ fn run() -> Result<u8> {
     let opts = RunOptions {
         changed: resolve_diff(&cli, &paths)?,
         fail_on_unknown: args.fail_on_unknown,
+        audit: args.audit,
     };
 
     let report = runner::check_paths(&paths, &config, &opts)?;
 
     let mut out = anstream::stdout().lock();
+    if args.audit {
+        report::write_audit(&mut out, &report, args.format())?;
+        out.flush()?;
+        return Ok(OK);
+    }
     report::write(&mut out, &report, args.format(), args.stats)?;
     out.flush()?;
 
@@ -92,6 +98,7 @@ fn apply_cli_overrides(config: &mut Config, cli: &Cli) {
     config.cli.max_lines = a.max_lines;
     config.cli.max_words = a.max_words;
     config.cli.max_chars = a.max_chars;
+    config.cli.max_line_words = a.max_line_words;
     config.cli.max_ratio = a.max_ratio;
     config.cli.include_docstrings = a.include_docstrings.then_some(true);
     config.cli.severity = a.severity.map(Into::into);
@@ -189,6 +196,7 @@ fn value_of(c: &backspace::config::ResolvedConfig, key: &str) -> String {
         "max_lines" => c.max_lines.to_string(),
         "max_words" => opt(c.max_words),
         "max_chars" => opt(c.max_chars),
+        "max_line_words" => opt(c.max_line_words),
         "include_docstrings" => c.include_docstrings.to_string(),
         "merge_across_blank_lines" => c.merge_across_blank_lines.to_string(),
         "max_ratio" => format!("{:.2}", c.max_ratio),

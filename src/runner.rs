@@ -13,17 +13,33 @@ use crate::rules::Violation;
 use crate::scan::CommentKind;
 use crate::{rules, scan, suppress};
 
+/// One comment as surfaced by `--audit`.
+#[derive(Debug, Clone)]
+pub struct AuditEntry {
+    pub path: PathBuf,
+    pub language: String,
+    pub start_line: u32,
+    pub end_line: u32,
+    pub kind: &'static str,
+    pub text: Vec<String>,
+    pub words: usize,
+    pub following_code_lines: u32,
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct RunOptions {
     /// When set, only blocks overlapping these lines are reported.
     pub changed: Option<ChangedLines>,
     /// Fail rather than silently skipping files of unknown type.
     pub fail_on_unknown: bool,
+    /// Collect every comment for review instead of applying rules.
+    pub audit: bool,
 }
 
 #[derive(Debug, Default)]
 pub struct Report {
     pub violations: Vec<Violation>,
+    pub comments: Vec<AuditEntry>,
     pub files_checked: usize,
     pub files_skipped: usize,
 }
@@ -100,21 +116,25 @@ pub fn check_paths(paths: &[PathBuf], config: &Config, opts: &RunOptions) -> Res
         let outcome = r?;
         match outcome {
             FileOutcome::Skipped => report.files_skipped += 1,
-            FileOutcome::Checked(v) => {
+            FileOutcome::Checked(v, c) => {
                 report.files_checked += 1;
                 report.violations.extend(v);
+                report.comments.extend(c);
             }
         }
     }
     report
         .violations
         .sort_by(|a, b| a.path.cmp(&b.path).then(a.start_line.cmp(&b.start_line)));
+    report
+        .comments
+        .sort_by(|a, b| a.path.cmp(&b.path).then(a.start_line.cmp(&b.start_line)));
     Ok(report)
 }
 
 enum FileOutcome {
     Skipped,
-    Checked(Vec<Violation>),
+    Checked(Vec<Violation>, Vec<AuditEntry>),
 }
 
 fn check_file(path: &Path, config: &Config, opts: &RunOptions) -> Result<FileOutcome> {
@@ -137,6 +157,7 @@ fn check_file(path: &Path, config: &Config, opts: &RunOptions) -> Result<FileOut
 
     let blocks = scan::scan(&source, spec, &cfg.scan_options());
     let mut out = Vec::new();
+    let mut audit = Vec::new();
 
     for block in &blocks {
         if block.kind == CommentKind::Doc && !cfg.include_docstrings {
@@ -152,11 +173,33 @@ fn check_file(path: &Path, config: &Config, opts: &RunOptions) -> Result<FileOut
             }
         }
 
+        if opts.audit {
+            audit.push(AuditEntry {
+                path: path.to_path_buf(),
+                language: spec.name.clone(),
+                start_line: block.start_line,
+                end_line: block.end_line,
+                kind: match block.kind {
+                    CommentKind::Line => "line",
+                    CommentKind::Block => "block",
+                    CommentKind::Doc => "doc",
+                },
+                words: block
+                    .text
+                    .iter()
+                    .map(|l| l.split_whitespace().count())
+                    .sum(),
+                text: block.text.clone(),
+                following_code_lines: block.following_code_lines,
+            });
+            continue;
+        }
+
         let directives = suppress::parse(&block.text);
         if directives.iter().any(|d| {
             d.scope == suppress::Scope::File && block.start_line <= suppress::IGNORE_FILE_MAX_LINE
         }) {
-            return Ok(FileOutcome::Checked(Vec::new()));
+            return Ok(FileOutcome::Checked(Vec::new(), Vec::new()));
         }
 
         let text: Vec<String> = block
@@ -187,5 +230,5 @@ fn check_file(path: &Path, config: &Config, opts: &RunOptions) -> Result<FileOut
         v.path = path.to_path_buf();
         v.language = spec.name.clone();
     }
-    Ok(FileOutcome::Checked(out))
+    Ok(FileOutcome::Checked(out, audit))
 }

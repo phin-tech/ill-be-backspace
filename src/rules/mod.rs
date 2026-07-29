@@ -215,7 +215,20 @@ fn block_too_long(
         .sum::<usize>();
     let chars = text.iter().map(|l| l.chars().count()).sum::<usize>();
 
-    let message = if lines > cfg.max_lines {
+    // Checked before the block budgets: a single runaway line is a more
+    // specific finding than "the block is long".
+    let worst_line = text
+        .iter()
+        .map(|l| l.split_whitespace().count())
+        .max()
+        .unwrap_or(0);
+
+    let message = if cfg.max_line_words.is_some_and(|m| worst_line > m) {
+        format!(
+            "comment line is {worst_line} words (max {})",
+            cfg.max_line_words.unwrap()
+        )
+    } else if lines > cfg.max_lines {
         format!("comment block is {lines} lines (max {})", cfg.max_lines)
     } else if cfg.max_words.is_some_and(|m| words > m) {
         format!(
