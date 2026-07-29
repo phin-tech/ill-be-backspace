@@ -39,6 +39,9 @@ impl Severity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Layer {
     Default,
+    /// `~/.config/ill-be-backspace.toml` — personal preferences that follow the
+    /// user between projects.
+    User,
     File,
     Language,
     Override(usize),
@@ -49,6 +52,7 @@ impl std::fmt::Display for Layer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Layer::Default => write!(f, "default"),
+            Layer::User => write!(f, "user config"),
             Layer::File => write!(f, "config file"),
             Layer::Language => write!(f, "language override"),
             Layer::Override(i) => write!(f, "overrides[{i}]"),
@@ -105,7 +109,7 @@ pub struct ResolvedConfig {
     pub max_ratio: f64,
     pub ratio_min_lines: usize,
 
-    pub banned_phrases: Vec<String>,
+    pub banned_phrases: Vec<crate::rules::Phrase>,
 
     pub select: BTreeSet<String>,
     pub ignore: BTreeSet<String>,
@@ -156,6 +160,8 @@ const DEDICATED: &[&str] = &[".backspace.toml", "backspace.toml"];
 #[derive(Debug, Clone)]
 pub struct Config {
     file: ConfigFile,
+    user: ConfigFile,
+    user_source: Option<PathBuf>,
     source: Option<PathBuf>,
     registry: Registry,
     exclude: GlobSet,
@@ -168,18 +174,29 @@ impl Config {
     /// Walks up from `start` looking for a config file. Returns defaults if none
     /// is found — a project with no config is a supported state, not an error.
     pub fn discover(start: &Path) -> Result<Config> {
+        Config::discover_in(start, user_config_dir().as_deref())
+    }
+
+    /// Discovery with an explicit user-config directory, so tests never touch
+    /// the real `~/.config`.
+    pub fn discover_in(start: &Path, user_dir: Option<&Path>) -> Result<Config> {
         let start = if start.is_dir() {
             start.to_path_buf()
         } else {
             start.parent().unwrap_or(Path::new(".")).to_path_buf()
         };
 
+        let (user, user_source) = match user_dir.map(load_user_config).transpose()? {
+            Some(Some((f, p))) => (f, Some(p)),
+            _ => (ConfigFile::default(), None),
+        };
+
         for dir in start.ancestors() {
             if let Some((file, path)) = load_from_dir(dir)? {
-                return Config::build(file, Some(path));
+                return Config::build_with(file, Some(path), user, user_source);
             }
         }
-        Config::build(ConfigFile::default(), None)
+        Config::build_with(ConfigFile::default(), None, user, user_source)
     }
 
     pub fn from_file(path: &Path) -> Result<Config> {
@@ -193,16 +210,31 @@ impl Config {
     }
 
     fn build(file: ConfigFile, source: Option<PathBuf>) -> Result<Config> {
+        Config::build_with(file, source, ConfigFile::default(), None)
+    }
+
+    fn build_with(
+        file: ConfigFile,
+        source: Option<PathBuf>,
+        user: ConfigFile,
+        user_source: Option<PathBuf>,
+    ) -> Result<Config> {
         let mut registry = Registry::builtin().clone();
-        if let Some(langs) = &file.languages {
-            for spec in &langs.custom {
-                registry
-                    .insert(spec.clone())
-                    .map_err(|e| anyhow::anyhow!("invalid custom language: {e}"))?;
+        // User languages go in first so a project definition of the same name
+        // still wins.
+        for cfg in [&user, &file] {
+            if let Some(langs) = &cfg.languages {
+                for spec in &langs.custom {
+                    registry
+                        .insert(spec.clone())
+                        .map_err(|e| anyhow::anyhow!("invalid custom language: {e}"))?;
+                }
             }
         }
 
-        let exclude = build_globset(file.exclude.as_deref().unwrap_or(&[]))?;
+        let mut excludes: Vec<String> = user.exclude.clone().unwrap_or_default();
+        excludes.extend(file.exclude.clone().unwrap_or_default());
+        let exclude = build_globset(&excludes)?;
         let override_globs = file
             .overrides
             .as_deref()
@@ -212,8 +244,10 @@ impl Config {
             .collect::<Result<Vec<_>>>()?;
 
         let cfg = Config {
-            diff_only: file.diff_only,
+            diff_only: file.diff_only.or(user.diff_only),
             file,
+            user,
+            user_source,
             source,
             registry,
             exclude,
@@ -228,7 +262,9 @@ impl Config {
     /// typo fails loudly at startup instead of silently disabling a check.
     fn validate(&self) -> Result<()> {
         let mut settings: Vec<&Settings> = Vec::new();
+        let user_top = self.user.settings();
         let top = self.file.settings();
+        settings.push(&user_top);
         settings.push(&top);
         if let Some(l) = &self.file.languages {
             settings.extend(l.overrides.values());
@@ -252,12 +288,13 @@ impl Config {
                         bail!("unknown banned-phrase preset `{preset}` (known: llm-tells)");
                     }
                 }
-                let all: Vec<String> = p
+                let all: Vec<rules::Phrase> = p
                     .patterns
                     .iter()
                     .chain(p.extend.iter())
                     .flatten()
-                    .cloned()
+                    .map(|s| rules::Phrase::pattern(s))
+                    .chain(p.words.iter().flatten().map(|w| rules::Phrase::word(w)))
                     .collect();
                 rules::compile_phrases(&all).map_err(|e| anyhow::anyhow!(e))?;
             }
@@ -267,6 +304,10 @@ impl Config {
 
     pub fn source(&self) -> Option<&Path> {
         self.source.as_deref()
+    }
+
+    pub fn user_source(&self) -> Option<&Path> {
+        self.user_source.as_deref()
     }
 
     pub fn registry(&self) -> &Registry {
@@ -314,6 +355,7 @@ impl Config {
             prov.set(key, Layer::Default);
         }
 
+        apply(&mut rc, &self.user.settings(), Layer::User, &mut prov);
         apply(&mut rc, &self.file.settings(), Layer::File, &mut prov);
 
         if let Some(langs) = &self.file.languages {
@@ -414,13 +456,18 @@ fn apply(rc: &mut ResolvedConfig, s: &Settings, layer: Layer, prov: &mut Provena
     }
     if let Some(p) = &r.banned_phrase {
         // `patterns` replaces the preset outright; `extend` always adds on top.
+        // `patterns` replaces outright; everything else accumulates, so a
+        // project adds to the user's word list rather than discarding it.
         let mut phrases = match (&p.patterns, &p.preset) {
-            (Some(pats), _) => pats.clone(),
+            (Some(pats), _) => pats.iter().map(|s| rules::Phrase::pattern(s)).collect(),
             (None, Some(_)) => rules::llm_tells_preset(),
             (None, None) => rc.banned_phrases.clone(),
         };
         if let Some(extra) = &p.extend {
-            phrases.extend(extra.iter().cloned());
+            phrases.extend(extra.iter().map(|s| rules::Phrase::pattern(s)));
+        }
+        if let Some(words) = &p.words {
+            phrases.extend(words.iter().map(|w| rules::Phrase::word(w)));
         }
         rc.banned_phrases = phrases;
         prov.set("banned_phrases", layer);
@@ -470,6 +517,31 @@ fn build_globset(patterns: &[String]) -> Result<GlobSet> {
         b.add(Glob::new(p).with_context(|| format!("invalid glob `{p}`"))?);
     }
     b.build().context("failed to build glob set")
+}
+
+/// `$BACKSPACE_CONFIG_HOME`, then `$XDG_CONFIG_HOME`, then `~/.config`.
+fn user_config_dir() -> Option<PathBuf> {
+    for var in ["BACKSPACE_CONFIG_HOME", "XDG_CONFIG_HOME"] {
+        if let Some(v) = std::env::var_os(var).filter(|v| !v.is_empty()) {
+            return Some(PathBuf::from(v));
+        }
+    }
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
+    Some(PathBuf::from(home).join(".config"))
+}
+
+/// Both names are accepted: the long one matches the package, the short one
+/// matches the command.
+const USER_CONFIG_NAMES: &[&str] = &["ill-be-backspace.toml", "backspace.toml"];
+
+fn load_user_config(dir: &Path) -> Result<Option<(ConfigFile, PathBuf)>> {
+    for name in USER_CONFIG_NAMES {
+        let path = dir.join(name);
+        if path.is_file() {
+            return Ok(Some((parse_dedicated(&path)?, path)));
+        }
+    }
+    Ok(None)
 }
 
 fn load_from_dir(dir: &Path) -> Result<Option<(ConfigFile, PathBuf)>> {

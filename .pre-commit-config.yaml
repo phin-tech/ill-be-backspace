@@ -1,0 +1,45 @@
+# Run with `prek run --all-files`, or `prek install` to hook it to commits.
+# Plain `pre-commit` works too; prek just runs it faster.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: detect-private-key
+      - id: check-added-large-files
+        # The README banner is a couple of megabytes.
+        args: [--maxkb=3000]
+
+  - repo: local
+    hooks:
+      - id: fmt
+        name: cargo fmt
+        entry: cargo fmt --all --
+        language: system
+        types: [rust]
+
+      - id: clippy
+        name: cargo clippy
+        entry: cargo clippy --all-targets -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: test
+        name: cargo test
+        entry: cargo test --quiet
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: backspace
+        name: backspace (over-long comments)
+        entry: cargo run --quiet -- --all
+        language: system
+        types: [text]
+        # Fixtures are deliberately bad comments; linting them would be circular.
+        exclude: ^tests/fixtures/

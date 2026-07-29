@@ -21,7 +21,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --all-features
 
-  lint:
+  # Runs the same hook set contributors get locally, so CI and pre-commit
+  # cannot drift: fmt, clippy, tests, backspace itself, and the file checks.
+  hooks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,8 +31,9 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all --check
-      - run: cargo clippy --all-targets -- -D warnings
+      - uses: j178/prek-action@v2
+        with:
+          extra_args: --all-files
 
   dogfood:
     runs-on: ubuntu-latest

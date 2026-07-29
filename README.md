@@ -72,7 +72,7 @@ That's it. That's the product. And folks, it is **fast**.
 ```yaml
 repos:
   - repo: https://github.com/phin-tech/ill-be-backspace
-    rev: v0.1.0
+    rev: v0.1.1
     hooks:
       - id: backspace
 ```
@@ -131,15 +131,70 @@ paths = ["tests/**"]
 max_lines = 15         # tests get a little room to breathe
 ```
 
-And when you can't remember why a value is what it is:
+## Ban Your Own Words
+
+Got a word you never want to see again? Put it in
+`~/.config/ill-be-backspace.toml` and it follows you into every repo you touch:
+
+```toml
+[rules.banned-phrase]
+words = ["substrate", "delve into", "leverage", "seamless", "robust"]
+```
+
+`words` are literal, not regexes — they're escaped for you, matched
+whole-word and case-insensitively. So `substrate` won't fire on `substrates`,
+and `c++` is a word rather than a syntax error. If you *want* a regex, use
+`extend = ['Verified \d{4}-\d{2}-\d{2}']`.
+
+### Your Words Are Safe
+
+Here's the important part. A project **adds to** your list, it does not replace
+it:
+
+```toml
+# some repo's .backspace.toml
+[rules.banned-phrase]
+words = ["synergy"]
+```
+
+You still get `substrate`, `delve into`, `leverage`, `seamless`, `robust` —
+*plus* `synergy`. The only thing that wipes your list is a project explicitly
+saying `patterns = [...]`, which is the documented "start from scratch" switch.
+
+| key | takes | what it does |
+|---|---|---|
+| `words` | plain text | escaped, whole-word, case-insensitive — **start here** |
+| `extend` | regex | appended to whatever's accumulated |
+| `patterns` | regex | **replaces** the accumulated list |
+| `preset` | `"llm-tells"` | the built-in bundle |
+
+## Who Set What, And Where
+
+Values stack up in this order, each one beating the last:
+
+```
+defaults → ~/.config/ill-be-backspace.toml → project config
+         → [languages.*] → [[overrides]] → CLI flags → inline directives
+```
+
+Every layer only changes the keys it names. Set `max_lines` in a project and
+your personal `require_suppression_reason` still applies.
+
+And when you can't remember why a value is what it is, just ask:
 
 ```console
 $ backspace config show src/api/handlers.py
-src/api/handlers.py  (python, config: .backspace.toml)
+src/api/handlers.py  (python)
+  user config:    /Users/you/.config/ill-be-backspace.toml
+  project config: .backspace.toml
+
   max_lines                  = 15            overrides[0]
   max_ratio                  = 1.50          default
+  banned_phrases             = 6 pattern(s)  user config
   severity                   = error         command line
 ```
+
+No guessing. Never guessing.
 
 Full schema in [`skill/reference.md`](skill/reference.md).
 

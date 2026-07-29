@@ -38,9 +38,49 @@ pub struct Violation {
     pub following_code_lines: u32,
 }
 
+/// A thing to look for in a comment. `display` is what the user wrote and what
+/// the violation message quotes; `pattern` is what actually gets compiled. They
+/// differ for word entries, where `substrate` becomes `\bsubstrate\b`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Phrase {
+    pub display: String,
+    pub pattern: String,
+}
+
+impl Phrase {
+    /// A literal word or multi-word phrase. Regex metacharacters are escaped so
+    /// `c++` is a word rather than a syntax error.
+    ///
+    /// Word boundaries are only applied at ends that are themselves word
+    /// characters: `\b` after the `+` of `c++` could never match, since a
+    /// boundary needs a word character on one side.
+    pub fn word(w: &str) -> Self {
+        let is_word = |c: char| c.is_alphanumeric() || c == '_';
+        let lead = w.chars().next().is_some_and(is_word);
+        let trail = w.chars().last().is_some_and(is_word);
+        Self {
+            display: w.to_string(),
+            pattern: format!(
+                "{}{}{}",
+                if lead { r"\b" } else { "" },
+                regex::escape(w),
+                if trail { r"\b" } else { "" },
+            ),
+        }
+    }
+
+    /// A raw regex, used as written.
+    pub fn pattern(p: &str) -> Self {
+        Self {
+            display: p.to_string(),
+            pattern: p.to_string(),
+        }
+    }
+}
+
 /// Phrases that reliably mark comments written to sound thorough rather than to
 /// inform. Opt-in: enabling this by default would make the tool preachy.
-pub fn llm_tells_preset() -> Vec<String> {
+pub fn llm_tells_preset() -> Vec<Phrase> {
     [
         r"Verified \d{4}-\d{2}-\d{2}",
         r"it does NOT\b",
@@ -52,25 +92,25 @@ pub fn llm_tells_preset() -> Vec<String> {
         r"\bKeep in mind that\b",
     ]
     .iter()
-    .map(|s| s.to_string())
+    .map(|p| Phrase::pattern(p))
     .collect()
 }
 
 /// Compiles phrase patterns, defaulting to case-insensitive unless the pattern
 /// sets its own flags. An invalid pattern is a config error, not something to
 /// silently drop.
-pub fn compile_phrases(patterns: &[String]) -> Result<Vec<(String, Regex)>, String> {
-    patterns
+pub fn compile_phrases(phrases: &[Phrase]) -> Result<Vec<(String, Regex)>, String> {
+    phrases
         .iter()
         .map(|p| {
-            let source = if p.starts_with("(?") {
-                p.clone()
+            let source = if p.pattern.starts_with("(?") {
+                p.pattern.clone()
             } else {
-                format!("(?i){p}")
+                format!("(?i){}", p.pattern)
             };
             Regex::new(&source)
-                .map(|re| (p.clone(), re))
-                .map_err(|e| format!("invalid banned-phrase pattern `{p}`: {e}"))
+                .map(|re| (p.display.clone(), re))
+                .map_err(|e| format!("invalid banned-phrase pattern `{}`: {e}", p.display))
         })
         .collect()
 }

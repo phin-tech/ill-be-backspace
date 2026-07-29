@@ -64,4 +64,17 @@ A bare `backspace: ignore` works too, and `backspace: ignore-file` near the top
 of a file exempts the whole file. Prefer the narrowest form, and always give a
 reason: the next reader needs to know whether the exemption still applies.
 
+## Personal word lists
+
+A user can ban words for themselves in `~/.config/ill-be-backspace.toml`:
+
+```toml
+[rules.banned-phrase]
+words = ["substrate", "delve into", "leverage"]
+```
+
+These are literal words, escaped and whole-word matched. A project's own list
+adds to them rather than replacing them, so a personal list survives across
+repos.
+
 Full configuration schema and rule list: see `reference.md` in this skill.

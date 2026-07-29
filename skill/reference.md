@@ -6,7 +6,7 @@
 |---|---|---|
 | `block-too-long` | a comment block exceeds a budget | `max_lines` (5), `max_words` (off), `max_chars` (off) |
 | `comment-code-ratio` | comment lines / following code lines exceeds a ratio | `max_ratio` (1.5), `ratio_min_lines` (3) |
-| `banned-phrase` | comment text matches a regex | `preset`, `patterns`, `extend` |
+| `banned-phrase` | comment text matches a word or regex | `words`, `preset`, `extend`, `patterns` |
 | `suppression-needs-reason` | a suppression directive has no justification | `require_suppression_reason` (false) |
 
 Docstrings and doc comments (`"""..."""`, `///`, `//!`, `/** */`) are exempt
@@ -14,7 +14,16 @@ unless `include_docstrings` is set.
 
 ## Configuration sources
 
-Checked in this order, first match wins, walking up from the target directory:
+**User config**, read first and applied as the weakest file layer:
+
+- `$BACKSPACE_CONFIG_HOME/ill-be-backspace.toml`, else
+- `$XDG_CONFIG_HOME/ill-be-backspace.toml`, else
+- `~/.config/ill-be-backspace.toml`
+
+`backspace.toml` is accepted as an alternative name in the same directory.
+
+**Project config**, checked in this order, first match wins, walking up from the
+target directory:
 
 1. `.backspace.toml`
 2. `backspace.toml`
@@ -22,8 +31,20 @@ Checked in this order, first match wins, walking up from the target directory:
 4. `package.json` → `"backspace"` key
 5. `Cargo.toml` → `[package.metadata.backspace]`
 
-Layers, later beating earlier: defaults → config file → `[languages.<name>]` →
-`[[overrides]]` (later entries win) → CLI flags → inline directives.
+Layers, later beating earlier:
+
+```
+defaults → user config → project config → [languages.<name>]
+         → [[overrides]] (later entries win) → CLI flags → inline directives
+```
+
+Each layer only overrides the keys it names, so a project setting `max_lines`
+leaves the user's `require_suppression_reason` intact.
+
+**Banned phrases accumulate rather than replace.** `words` and `extend` from a
+project are appended to whatever the user config already contributed; only
+`patterns` discards the accumulated list. That is what keeps a personal word
+list alive across every repo.
 
 `backspace config show <path>` prints the resolved value of every key and which
 layer produced it.
@@ -52,8 +73,9 @@ ratio_min_lines = 3
 
 [rules.banned-phrase]
 preset = "llm-tells"               # the only preset; omit for none
-patterns = []                      # replaces the preset outright
-extend = ["(?i)as an ai"]          # always added on top
+words = ["substrate", "c++"]       # literal, escaped, whole-word, added on top
+extend = ["(?i)as an ai"]          # regexes, added on top
+patterns = []                      # regexes, replaces the accumulated list
 
 [languages.go]                     # per-language budgets
 max_lines = 8

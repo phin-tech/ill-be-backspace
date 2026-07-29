@@ -3,6 +3,7 @@
 
 use backspace::config::{ResolvedConfig, Severity};
 use backspace::lang::Registry;
+use backspace::rules::Phrase;
 use backspace::{check_source, Violation};
 
 fn check(source: &str, lang: &str, cfg: &ResolvedConfig) -> Vec<Violation> {
@@ -201,7 +202,7 @@ mod banned_phrase {
     fn with_patterns(pats: &[&str]) -> ResolvedConfig {
         ResolvedConfig {
             select: ["banned-phrase"].iter().map(|s| s.to_string()).collect(),
-            banned_phrases: pats.iter().map(|s| s.to_string()).collect(),
+            banned_phrases: pats.iter().map(|s| Phrase::pattern(s)).collect(),
             ..Default::default()
         }
     }
@@ -274,7 +275,7 @@ mod banned_phrase {
 
     #[test]
     fn an_invalid_regex_is_reported_at_config_time_not_ignored() {
-        assert!(backspace::rules::compile_phrases(&["([".to_string()]).is_err());
+        assert!(backspace::rules::compile_phrases(&[Phrase::pattern("([")]).is_err());
     }
 }
 
@@ -455,5 +456,85 @@ mod select_and_ignore {
         let v = check(&comment_block(7), "python", &length_only(5));
         assert_eq!(v[0].text.len(), 7);
         assert_eq!(v[0].text[0], "line 0");
+    }
+}
+
+mod banned_words {
+    use super::*;
+
+    fn with_words(words: &[&str]) -> ResolvedConfig {
+        ResolvedConfig {
+            select: ["banned-phrase"].iter().map(|s| s.to_string()).collect(),
+            banned_phrases: words.iter().map(|w| Phrase::word(w)).collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn bans_a_plain_word() {
+        let v = check(
+            "# runs on the substrate layer\n",
+            "python",
+            &with_words(&["substrate"]),
+        );
+        assert_eq!(rule_ids(&v), ["banned-phrase"]);
+    }
+
+    #[test]
+    fn is_case_insensitive() {
+        assert_eq!(
+            check("# The Substrate\n", "python", &with_words(&["substrate"])).len(),
+            1
+        );
+    }
+
+    #[test]
+    fn matches_whole_words_only() {
+        // `substrate` must not fire on `substrates` or `subsubstrate`.
+        assert!(check(
+            "# substrates everywhere\n",
+            "python",
+            &with_words(&["substrate"])
+        )
+        .is_empty());
+        assert!(check("# a subsubstrate\n", "python", &with_words(&["substrate"])).is_empty());
+    }
+
+    #[test]
+    fn matches_a_multi_word_phrase() {
+        let v = check(
+            "# we delve into the cache\n",
+            "python",
+            &with_words(&["delve into"]),
+        );
+        assert_eq!(v.len(), 1);
+    }
+
+    #[test]
+    fn regex_metacharacters_are_literal_not_syntax() {
+        // A word list is not a regex list; `c++` must not be a parse error.
+        let v = check("# written in c++ here\n", "python", &with_words(&["c++"]));
+        assert_eq!(v.len(), 1);
+    }
+
+    #[test]
+    fn the_message_names_the_word_not_a_regex() {
+        let v = check("# the substrate\n", "python", &with_words(&["substrate"]));
+        assert!(v[0].message.contains("substrate"), "{}", v[0].message);
+        assert!(!v[0].message.contains("\\b"), "{}", v[0].message);
+    }
+
+    #[test]
+    fn words_and_regex_patterns_coexist() {
+        let cfg = ResolvedConfig {
+            select: ["banned-phrase"].iter().map(|s| s.to_string()).collect(),
+            banned_phrases: vec![
+                Phrase::word("substrate"),
+                Phrase::pattern(r"Verified \d{4}"),
+            ],
+            ..Default::default()
+        };
+        let v = check("# substrate, Verified 2026\n", "python", &cfg);
+        assert_eq!(v.len(), 2);
     }
 }

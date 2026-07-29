@@ -168,15 +168,14 @@ fn subcommand(command: &Command, cli: &Cli) -> Result<u8> {
                 .unwrap_or_else(|| "unknown".to_string());
 
             let (resolved, prov) = config.resolve_verbose(path, &language);
-            println!(
-                "{}  ({}, config: {})",
-                path.display(),
-                language,
-                config
-                    .source()
-                    .map(|p| p.display().to_string())
+            let show = |p: Option<&Path>| {
+                p.map(|p| p.display().to_string())
                     .unwrap_or_else(|| "none".into())
-            );
+            };
+            println!("{}  ({language})", path.display());
+            println!("  user config:    {}", show(config.user_source()));
+            println!("  project config: {}", show(config.source()));
+            println!();
             for (key, layer) in prov.iter() {
                 println!("  {key:<26} = {:<24} {layer}", value_of(&resolved, key));
             }

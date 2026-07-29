@@ -261,7 +261,10 @@ mod rules_section {
             "[rules.banned-phrase]\npreset = \"llm-tells\"\nextend = [\"(?i)as an ai\"]\n",
         )]);
         let cfg = discover(dir.path()).resolve(Path::new("a.py"), "python");
-        assert!(cfg.banned_phrases.iter().any(|p| p.contains("as an ai")));
+        assert!(cfg
+            .banned_phrases
+            .iter()
+            .any(|p| p.display.contains("as an ai")));
         assert!(cfg.banned_phrases.len() > 1);
     }
 
@@ -431,5 +434,124 @@ mod excludes {
             cfg.resolve(Path::new("./tests/a.py"), "python").max_lines,
             42
         );
+    }
+}
+
+mod user_config {
+    use super::*;
+
+    /// Points config discovery at a scratch directory so these tests never read
+    /// or write the developer's real `~/.config`.
+    fn with_user_config(contents: &str) -> (TempDir, TempDir) {
+        let home = tempfile::tempdir().unwrap();
+        fs::write(home.path().join("ill-be-backspace.toml"), contents).unwrap();
+        let proj = tempfile::tempdir().unwrap();
+        (home, proj)
+    }
+
+    fn discover_with(home: &Path, proj: &Path) -> Config {
+        Config::discover_in(proj, Some(home)).expect("discovery failed")
+    }
+
+    #[test]
+    fn user_config_applies_when_no_project_config_exists() {
+        let (home, proj) = with_user_config("max_lines = 9\n");
+        let cfg = discover_with(home.path(), proj.path());
+        assert_eq!(cfg.resolve(Path::new("a.py"), "python").max_lines, 9);
+    }
+
+    #[test]
+    fn a_project_config_overrides_the_user_config() {
+        let (home, proj) = with_user_config("max_lines = 9\n");
+        fs::write(proj.path().join(".backspace.toml"), "max_lines = 3\n").unwrap();
+        let cfg = discover_with(home.path(), proj.path());
+        assert_eq!(cfg.resolve(Path::new("a.py"), "python").max_lines, 3);
+    }
+
+    #[test]
+    fn keys_the_project_does_not_set_still_come_from_the_user() {
+        let (home, proj) = with_user_config("max_lines = 9\nrequire_suppression_reason = true\n");
+        fs::write(proj.path().join(".backspace.toml"), "max_lines = 3\n").unwrap();
+        let cfg = discover_with(home.path(), proj.path()).resolve(Path::new("a.py"), "python");
+        assert_eq!(cfg.max_lines, 3);
+        assert!(cfg.require_suppression_reason);
+    }
+
+    #[test]
+    fn personal_banned_words_apply_everywhere() {
+        let (home, proj) =
+            with_user_config("[rules.banned-phrase]\nextend = [\"delve into\", \"leverage\"]\n");
+        let cfg = discover_with(home.path(), proj.path()).resolve(Path::new("a.py"), "python");
+        assert!(cfg.banned_phrases.iter().any(|p| p.display == "delve into"));
+        assert!(cfg.rule_enabled("banned-phrase"));
+    }
+
+    #[test]
+    fn a_project_can_add_words_without_losing_the_users() {
+        let (home, proj) = with_user_config("[rules.banned-phrase]\nextend = [\"delve into\"]\n");
+        fs::write(
+            proj.path().join(".backspace.toml"),
+            "[rules.banned-phrase]\nextend = [\"synergy\"]\n",
+        )
+        .unwrap();
+        let cfg = discover_with(home.path(), proj.path()).resolve(Path::new("a.py"), "python");
+        assert!(cfg.banned_phrases.iter().any(|p| p.display == "delve into"));
+        assert!(cfg.banned_phrases.iter().any(|p| p.display == "synergy"));
+    }
+
+    #[test]
+    fn a_project_can_replace_the_word_list_outright() {
+        let (home, proj) = with_user_config("[rules.banned-phrase]\nextend = [\"delve into\"]\n");
+        fs::write(
+            proj.path().join(".backspace.toml"),
+            "[rules.banned-phrase]\npatterns = [\"only-this\"]\n",
+        )
+        .unwrap();
+        let cfg = discover_with(home.path(), proj.path()).resolve(Path::new("a.py"), "python");
+        assert_eq!(cfg.banned_phrases[0].display, "only-this");
+        assert_eq!(cfg.banned_phrases.len(), 1);
+    }
+
+    #[test]
+    fn a_user_defined_language_is_available_to_every_project() {
+        let (home, proj) = with_user_config(
+            "[[languages.custom]]\nname = \"nix\"\nextensions = [\".nix\"]\nline_comments = [\"#\"]\n",
+        );
+        let cfg = discover_with(home.path(), proj.path());
+        assert!(cfg.registry().get("nix").is_some());
+    }
+
+    #[test]
+    fn user_excludes_are_honoured() {
+        let (home, proj) = with_user_config("exclude = [\"**/scratch/**\"]\n");
+        let cfg = discover_with(home.path(), proj.path());
+        assert!(cfg.is_excluded(Path::new("a/scratch/b.py")));
+    }
+
+    #[test]
+    fn provenance_names_the_user_layer() {
+        let (home, proj) = with_user_config("max_lines = 9\n");
+        let (_, prov) =
+            discover_with(home.path(), proj.path()).resolve_verbose(Path::new("a.py"), "python");
+        assert_eq!(prov.layer_of("max_lines"), Some(Layer::User));
+    }
+
+    #[test]
+    fn a_missing_user_config_is_not_an_error() {
+        let home = tempfile::tempdir().unwrap();
+        let proj = tempfile::tempdir().unwrap();
+        let cfg = discover_with(home.path(), proj.path());
+        assert_eq!(cfg.resolve(Path::new("a.py"), "python").max_lines, 5);
+        assert!(cfg.user_source().is_none());
+    }
+
+    #[test]
+    fn a_broken_user_config_reports_the_file_it_came_from() {
+        let (home, proj) = with_user_config("max_linez = 3\n");
+        let err = format!(
+            "{:#}",
+            Config::discover_in(proj.path(), Some(home.path())).unwrap_err()
+        );
+        assert!(err.contains("ill-be-backspace.toml"), "{err}");
     }
 }

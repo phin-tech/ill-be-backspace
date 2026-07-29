@@ -113,6 +113,9 @@ pub struct PhraseRule {
     pub preset: Option<String>,
     /// Replaces the preset entirely.
     pub patterns: Option<Vec<String>>,
-    /// Added on top of whatever the preset or `patterns` produced.
+    /// Regexes added on top of whatever the preset or `patterns` produced.
     pub extend: Option<Vec<String>>,
+    /// Literal words, escaped and word-bounded. The friendly option: a word list
+    /// is not a regex list, so `c++` is a word rather than a syntax error.
+    pub words: Option<Vec<String>>,
 }
