@@ -166,7 +166,7 @@ $ cp -r skill ~/.claude/skills/backspace
 
 ## Under The Hood
 
-A hand-rolled character state machine, one pass, no parser generators, no
+A clanker-rolled character state machine, one pass, no parser generators, no
 grammar downloads. Language definitions are plain TOML embedded at compile time
 — and you can add your own at *runtime*, same schema, no recompile.
 
