@@ -72,7 +72,7 @@ That's it. That's the product. And folks, it is **fast**.
 ```yaml
 repos:
   - repo: https://github.com/phin-tech/ill-be-backspace
-    rev: v0.1.1
+    rev: v0.1.2
     hooks:
       - id: backspace
 ```
@@ -106,7 +106,7 @@ strange. Your CI will know exactly what to do.
 |---|---|
 | `block-too-long` | More than `max_lines` (5) consecutive lines of comment. |
 | `comment-code-ratio` | A comment longer than the code beneath it. **This is the one that finds the real offenders.** |
-| `banned-phrase` | Regexes you pick. There's an `llm-tells` preset for `Verified 2026-…`, `Note that`, `it does NOT`, and friends. Opt-in — we're not here to preach. |
+| `banned-phrase` | Words and regexes you pick — see below. There's an `llm-tells` preset for `Verified 2026-…`, `Note that`, `it does NOT`, and friends. Opt-in — we're not here to preach. |
 
 `backspace explain <rule>` if you want the long version.
 
@@ -230,7 +230,7 @@ Two things it's honest about: JavaScript regex-literal detection and Python
 docstring position are heuristics, not a parser. They're tested against the
 cases that matter and documented where they aren't perfect.
 
-197 tests. It passes its own lint. We wouldn't dare ship it otherwise.
+215 tests. It passes its own lint. We wouldn't dare ship it otherwise.
 
 ## Contributing
 
