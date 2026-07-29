@@ -307,6 +307,15 @@ cases that matter and documented where they aren't perfect.
 
 256 tests. It passes its own lint. We wouldn't dare ship it otherwise.
 
+## What Changed
+
+Every release is written up in [`CHANGELOG.md`](CHANGELOG.md), including the
+rules that moved and the defaults that shifted.
+
+While we're below 1.0, thresholds may change in a minor release — but a **new
+rule always ships switched off**, so upgrading will never start failing a build
+that passed yesterday.
+
 ## Contributing
 
 New language? One file in `languages/`, one line in `src/lang/mod.rs`, a
@@ -314,8 +323,11 @@ New language? One file in `languages/`, one line in `src/lang/mod.rs`, a
 
 ```console
 $ cargo test
-$ cargo run -- --all .
+$ prek run --all-files
 ```
+
+Adding a rule or changing a default? Add a line to
+[`CHANGELOG.md`](CHANGELOG.md) under `## [Unreleased]` while it's still fresh.
 
 ## License
 
