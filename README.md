@@ -80,11 +80,12 @@ repos:
 **Or any of these**, whichever suits your operation:
 
 ```console
-$ uvx ill-be-backspace            # try before you buy
-$ pipx install ill-be-backspace   # a wheel, no Rust required
-$ cargo install ill-be-backspace  # for the purists
+$ uvx --from ill-be-backspace backspace   # try before you buy
+$ pipx install ill-be-backspace           # a wheel, no Rust required
 $ brew install phin-tech/tap/backspace
 ```
+
+The package is `ill-be-backspace`; the command it installs is `backspace`.
 
 ## Kick The Tires
 
