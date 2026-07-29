@@ -1,0 +1,17 @@
+name = "sql"
+extensions = [".sql"]
+line_comments = ["--"]
+
+[[block_comments]]
+open = "/*"
+close = "*/"
+
+[[strings]]
+delim = "'"
+multiline = true
+escape = '\'
+
+[[strings]]
+delim = '"'
+multiline = true
+escape = '\'

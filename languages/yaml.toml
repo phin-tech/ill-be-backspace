@@ -1,0 +1,10 @@
+name = "yaml"
+extensions = [".yaml", ".yml"]
+line_comments = ["#"]
+
+[[strings]]
+delim = '"'
+escape = '\'
+
+[[strings]]
+delim = "'"

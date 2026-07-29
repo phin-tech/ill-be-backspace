@@ -1,0 +1,23 @@
+name = "python"
+extensions = [".py", ".pyi"]
+shebangs = ["python", "python3"]
+line_comments = ["#"]
+docstrings = "python"
+
+[[strings]]
+delim = '"""'
+multiline = true
+escape = '\'
+
+[[strings]]
+delim = "'''"
+multiline = true
+escape = '\'
+
+[[strings]]
+delim = '"'
+escape = '\'
+
+[[strings]]
+delim = "'"
+escape = '\'

@@ -1,0 +1,21 @@
+name = "kotlin"
+extensions = [".kt", ".kts"]
+line_comments = ["//"]
+doc_markers = ["/**"]
+
+[[block_comments]]
+open = "/*"
+close = "*/"
+nested = true
+
+[[strings]]
+delim = '"""'
+multiline = true
+
+[[strings]]
+delim = '"'
+escape = '\'
+
+[[strings]]
+delim = "'"
+escape = '\'

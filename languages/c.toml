@@ -1,0 +1,16 @@
+name = "c"
+extensions = [".c", ".h", ".cc", ".cpp", ".cxx", ".hpp", ".hh", ".hxx", ".m", ".mm"]
+line_comments = ["//"]
+doc_markers = ["///", "/**", "/*!"]
+
+[[block_comments]]
+open = "/*"
+close = "*/"
+
+[[strings]]
+delim = '"'
+escape = '\'
+
+[[strings]]
+delim = "'"
+escape = '\'

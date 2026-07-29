@@ -1,0 +1,11 @@
+name = "hcl"
+extensions = [".tf", ".tfvars", ".hcl"]
+line_comments = ["#", "//"]
+
+[[block_comments]]
+open = "/*"
+close = "*/"
+
+[[strings]]
+delim = '"'
+escape = '\'

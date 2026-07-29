@@ -1,0 +1,32 @@
+name = "rust"
+extensions = [".rs"]
+line_comments = ["//"]
+doc_markers = ["///", "//!", "/**", "/*!"]
+
+[[block_comments]]
+open = "/*"
+close = "*/"
+nested = true
+
+[[strings]]
+delim = 'r##"'
+close = '"##'
+raw = true
+multiline = true
+
+[[strings]]
+delim = 'r#"'
+close = '"#'
+raw = true
+multiline = true
+
+[[strings]]
+delim = 'r"'
+close = '"'
+raw = true
+multiline = true
+
+[[strings]]
+delim = '"'
+multiline = true
+escape = '\'

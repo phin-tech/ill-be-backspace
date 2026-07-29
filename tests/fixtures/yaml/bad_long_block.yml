@@ -1,0 +1,6 @@
+# This workflow does NOT run on forks, because the deploy key is not
+# available to pull_request events from forks. Verified 2026-07-29: adding
+# pull_request_target would fix it but opens a script-injection hole, so we
+# keep the fork path on the build-only job below. See the security notes in
+# docs/ci.md before changing any of this, especially the permissions block.
+on: push

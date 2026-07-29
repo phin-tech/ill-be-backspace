@@ -1,0 +1,11 @@
+name = "makefile"
+extensions = [".mk", ".make"]
+filenames = ["Makefile", "makefile", "GNUmakefile"]
+line_comments = ["#"]
+
+[[strings]]
+delim = '"'
+escape = '\'
+
+[[strings]]
+delim = "'"

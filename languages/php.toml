@@ -1,0 +1,16 @@
+name = "php"
+extensions = [".php"]
+line_comments = ["//", "#"]
+doc_markers = ["/**"]
+
+[[block_comments]]
+open = "/*"
+close = "*/"
+
+[[strings]]
+delim = '"'
+escape = '\'
+
+[[strings]]
+delim = "'"
+escape = '\'

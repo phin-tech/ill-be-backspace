@@ -1,0 +1,19 @@
+name = "toml"
+extensions = [".toml"]
+line_comments = ["#"]
+
+[[strings]]
+delim = '"""'
+multiline = true
+escape = '\'
+
+[[strings]]
+delim = "'''"
+multiline = true
+
+[[strings]]
+delim = '"'
+escape = '\'
+
+[[strings]]
+delim = "'"

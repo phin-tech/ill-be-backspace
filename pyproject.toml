@@ -1,0 +1,43 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "ill-be-backspace"
+description = "Flags comment blocks that have outgrown the code they describe."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { file = "LICENSE" }
+keywords = ["linter", "comments", "pre-commit", "static-analysis"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Rust",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/phin-tech/ill-be-backspace"
+Repository = "https://github.com/phin-tech/ill-be-backspace"
+Issues = "https://github.com/phin-tech/ill-be-backspace/issues"
+
+# The wheel ships the compiled binary; there is no Python code in the package.
+# This is purely a distribution channel, and it is the one that makes
+# `language: python` pre-commit hooks work without a Rust toolchain.
+[tool.maturin]
+bindings = "bin"
+manifest-path = "Cargo.toml"
+strip = true
+
+# backspace checking itself, via the package-manager config path.
+[tool.backspace]
+max_lines = 5
+severity = "error"
+# Fixtures are deliberately bad comments; linting them would be circular.
+exclude = ["tests/fixtures/**", "target/**"]
+
+[tool.backspace.rules.banned-phrase]
+preset = "llm-tells"

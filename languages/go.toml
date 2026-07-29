@@ -1,0 +1,20 @@
+name = "go"
+extensions = [".go"]
+line_comments = ["//"]
+
+[[block_comments]]
+open = "/*"
+close = "*/"
+
+[[strings]]
+delim = '`'
+raw = true
+multiline = true
+
+[[strings]]
+delim = '"'
+escape = '\'
+
+[[strings]]
+delim = "'"
+escape = '\'

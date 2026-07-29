@@ -1,0 +1,122 @@
+# backspace reference
+
+## Rules
+
+| id | fires when | key settings |
+|---|---|---|
+| `block-too-long` | a comment block exceeds a budget | `max_lines` (5), `max_words` (off), `max_chars` (off) |
+| `comment-code-ratio` | comment lines / following code lines exceeds a ratio | `max_ratio` (1.5), `ratio_min_lines` (3) |
+| `banned-phrase` | comment text matches a regex | `preset`, `patterns`, `extend` |
+| `suppression-needs-reason` | a suppression directive has no justification | `require_suppression_reason` (false) |
+
+Docstrings and doc comments (`"""..."""`, `///`, `//!`, `/** */`) are exempt
+unless `include_docstrings` is set.
+
+## Configuration sources
+
+Checked in this order, first match wins, walking up from the target directory:
+
+1. `.backspace.toml`
+2. `backspace.toml`
+3. `pyproject.toml` → `[tool.backspace]`
+4. `package.json` → `"backspace"` key
+5. `Cargo.toml` → `[package.metadata.backspace]`
+
+Layers, later beating earlier: defaults → config file → `[languages.<name>]` →
+`[[overrides]]` (later entries win) → CLI flags → inline directives.
+
+`backspace config show <path>` prints the resolved value of every key and which
+layer produced it.
+
+## Full schema
+
+```toml
+max_lines = 5
+max_words = 40                     # optional
+max_chars = 300                    # optional
+include_docstrings = false
+merge_across_blank_lines = true    # a blank line does not split a comment block
+require_suppression_reason = false
+severity = "error"                 # or "warning": reports but exits 0
+diff_only = true
+select = ["block-too-long", "comment-code-ratio"]
+ignore = []
+exclude = ["**/vendor/**", "**/*.generated.*"]
+
+[rules.block-too-long]
+max_lines = 5
+
+[rules.comment-code-ratio]
+max_ratio = 1.5
+ratio_min_lines = 3
+
+[rules.banned-phrase]
+preset = "llm-tells"               # the only preset; omit for none
+patterns = []                      # replaces the preset outright
+extend = ["(?i)as an ai"]          # always added on top
+
+[languages.go]                     # per-language budgets
+max_lines = 8
+
+[[overrides]]                      # per-path, later entries win
+paths = ["tests/**", "scripts/**"]
+max_lines = 15
+
+[[languages.custom]]               # teach it a language it does not ship
+name = "nix"
+extensions = [".nix"]
+line_comments = ["#"]
+block_comments = [{ open = "/*", close = "*/" }]
+```
+
+## Language spec fields
+
+`name`, `extensions`, `filenames`, `shebangs`, `line_comments`,
+`block_comments` (`open`, `close`, `nested`), `doc_markers`, `strings`
+(`delim`, `close`, `raw`, `multiline`, `escape`), `docstrings` (`none` or
+`python`), `regex_literals`.
+
+`backspace languages` lists what the current build understands.
+
+## CLI
+
+```
+backspace [PATHS...] [--max-lines N] [--max-ratio F] [--max-words N] [--max-chars N]
+          [--include-docstrings] [--select RULE] [--ignore RULE] [--exclude GLOB]
+          [--diff | --diff=REF | --all] [--config PATH]
+          [--format text|github|json] [--json] [--severity error|warning]
+          [--stats] [--fail-on-unknown] [--jobs N]
+
+backspace config show <PATH>
+backspace languages
+backspace explain <RULE>
+```
+
+`--diff` requires the `=` form when given a ref (`--diff=main`), so that
+`backspace --diff .` reads `.` as a path.
+
+## JSON output
+
+```json
+{
+  "version": 1,
+  "summary": { "files_checked": 1, "violations": 2, "errors": 2, "warnings": 0 },
+  "violations": [
+    {
+      "rule": "comment-code-ratio",
+      "severity": "error",
+      "file": "src/deploy.py",
+      "start_line": 2, "end_line": 7, "column": 5,
+      "message": "6 comment lines describe 2 lines of code (ratio 3.0, max 1.5)",
+      "help": "...",
+      "language": "python",
+      "comment": ["...", "..."],
+      "comment_line_count": 6,
+      "following_code_lines": 2
+    }
+  ]
+}
+```
+
+`comment` carries the offending text, so a consumer can rewrite the comment
+without re-reading the file.

@@ -1,0 +1,17 @@
+- id: backspace
+  name: backspace (over-long comments)
+  description: Flags comment blocks that have outgrown the code they describe.
+  entry: backspace
+  language: python
+  types: [text]
+  args: [--diff]
+  require_serial: false
+
+- id: backspace-all
+  name: backspace (whole files)
+  description: Same checks, but over entire files rather than only changed lines.
+  entry: backspace
+  language: python
+  types: [text]
+  args: [--all]
+  require_serial: false

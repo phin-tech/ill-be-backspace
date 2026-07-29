@@ -1,0 +1,14 @@
+name = "bash"
+extensions = [".sh", ".bash", ".zsh", ".ksh"]
+filenames = [".bashrc", ".zshrc", ".bash_profile", ".profile"]
+shebangs = ["bash", "sh", "zsh", "ksh", "dash"]
+line_comments = ["#"]
+
+[[strings]]
+delim = '"'
+multiline = true
+escape = '\'
+
+[[strings]]
+delim = "'"
+multiline = true

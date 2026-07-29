@@ -1,0 +1,23 @@
+name = "swift"
+extensions = [".swift"]
+line_comments = ["//"]
+doc_markers = ["///", "/**"]
+
+[[block_comments]]
+open = "/*"
+close = "*/"
+nested = true
+
+[[strings]]
+delim = '"""'
+multiline = true
+escape = '\'
+
+[[strings]]
+delim = '#"'
+close = '"#'
+raw = true
+
+[[strings]]
+delim = '"'
+escape = '\'

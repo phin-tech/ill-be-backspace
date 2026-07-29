@@ -1,0 +1,19 @@
+name = "ruby"
+extensions = [".rb", ".rake", ".gemspec"]
+filenames = ["Rakefile", "Gemfile"]
+shebangs = ["ruby"]
+line_comments = ["#"]
+
+[[block_comments]]
+open = "=begin"
+close = "=end"
+
+[[strings]]
+delim = '"'
+multiline = true
+escape = '\'
+
+[[strings]]
+delim = "'"
+multiline = true
+escape = '\'

@@ -1,0 +1,11 @@
+name = "dockerfile"
+extensions = [".dockerfile"]
+filenames = ["Dockerfile", "Containerfile"]
+line_comments = ["#"]
+
+[[strings]]
+delim = '"'
+escape = '\'
+
+[[strings]]
+delim = "'"

@@ -1,0 +1,22 @@
+name = "lua"
+extensions = [".lua"]
+shebangs = ["lua"]
+line_comments = ["--"]
+
+[[block_comments]]
+open = "--[["
+close = "]]"
+
+[[strings]]
+delim = "[["
+close = "]]"
+raw = true
+multiline = true
+
+[[strings]]
+delim = '"'
+escape = '\'
+
+[[strings]]
+delim = "'"
+escape = '\'

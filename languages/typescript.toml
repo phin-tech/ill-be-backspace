@@ -1,0 +1,22 @@
+name = "typescript"
+extensions = [".ts", ".tsx", ".mts", ".cts"]
+line_comments = ["//"]
+doc_markers = ["/**"]
+regex_literals = true
+
+[[block_comments]]
+open = "/*"
+close = "*/"
+
+[[strings]]
+delim = '`'
+multiline = true
+escape = '\'
+
+[[strings]]
+delim = '"'
+escape = '\'
+
+[[strings]]
+delim = "'"
+escape = '\'

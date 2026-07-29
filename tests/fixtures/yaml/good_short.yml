@@ -1,0 +1,2 @@
+# Pinned: 3.12 breaks the C extension.
+python: "3.11"

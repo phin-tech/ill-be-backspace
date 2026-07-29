@@ -1,0 +1,21 @@
+name = "java"
+extensions = [".java"]
+line_comments = ["//"]
+doc_markers = ["/**"]
+
+[[block_comments]]
+open = "/*"
+close = "*/"
+
+[[strings]]
+delim = '"""'
+multiline = true
+escape = '\'
+
+[[strings]]
+delim = '"'
+escape = '\'
+
+[[strings]]
+delim = "'"
+escape = '\'
