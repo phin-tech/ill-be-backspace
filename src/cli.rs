@@ -156,6 +156,7 @@ impl CheckArgs {
 pub enum SeverityArg {
     Error,
     Warning,
+    Note,
 }
 
 impl From<SeverityArg> for Severity {
@@ -163,6 +164,7 @@ impl From<SeverityArg> for Severity {
         match s {
             SeverityArg::Error => Severity::Error,
             SeverityArg::Warning => Severity::Warning,
+            SeverityArg::Note => Severity::Note,
         }
     }
 }

@@ -78,6 +78,15 @@ pub struct Phrase {
     /// The plain word to use instead, when there is one. A finding that can name
     /// the replacement is a finding the reader can act on without thinking.
     pub suggest: Option<String>,
+    /// What the word properly means, for an entry that advises rather than
+    /// bans.
+    pub note: Option<String>,
+    /// How hard this entry pushes, overriding the configured severity.
+    ///
+    /// Some words are right in one domain and a tic in another — `gate` is a
+    /// conditional guard, `headline` is an org-mode heading — and the useful
+    /// thing to say about them is what they mean, not that they are banned.
+    pub severity: Option<Severity>,
     /// Words that make this match legitimate when they follow it.
     ///
     /// Some words are only a tic outside a fixed idiom. `pathological case` is
@@ -108,6 +117,8 @@ impl Phrase {
                 if trail { r"\b" } else { "" },
             ),
             suggest: None,
+            note: None,
+            severity: None,
             except_before: Vec::new(),
         }
     }
@@ -118,6 +129,8 @@ impl Phrase {
             display: p.to_string(),
             pattern: p.to_string(),
             suggest: None,
+            note: None,
+            severity: None,
             except_before: Vec::new(),
         }
     }
@@ -129,6 +142,8 @@ impl Phrase {
             display: display.to_string(),
             pattern: pattern.to_string(),
             suggest: None,
+            note: None,
+            severity: None,
             except_before: Vec::new(),
         }
     }
@@ -137,6 +152,16 @@ impl Phrase {
     pub fn replacing(w: &str, plain: &str) -> Self {
         Self {
             suggest: Some(plain.to_string()),
+            ..Phrase::word(w)
+        }
+    }
+
+    /// A word worth a word about, rather than a word to remove. Reports at
+    /// `note`, which never fails a build, and says what the word is for.
+    pub fn advisory(w: &str, means: &str) -> Self {
+        Self {
+            severity: Some(Severity::Note),
+            note: Some(means.to_string()),
             ..Phrase::word(w)
         }
     }
@@ -368,6 +393,32 @@ pub fn agent_tics_preset() -> Vec<Phrase> {
         ][..],
     )];
 
+    // Words the control corpus cleared, kept as advice rather than dropped.
+    // Each is right in some domain and a tic outside it, so the useful thing to
+    // say is what it means. These report at `note` and never fail a build.
+    let advisory = [
+        (
+            "gate",
+            "a gate is a conditional guard — `gated on the flag`. If you mean \
+             `controls` or `limits`, say that",
+        ),
+        (
+            "headline",
+            "a headline is org-mode's word for a heading. If you mean `the main \
+             point`, say that",
+        ),
+        (
+            "inert",
+            "inert means present but non-reactive, as in HTML's `inert` \
+             attribute. If you mean `disabled` or `does nothing`, say that",
+        ),
+        (
+            "soak",
+            "a soak test runs for a long time under load. If you mean `absorb` \
+             or `tolerate`, say that",
+        ),
+    ];
+
     words
         .iter()
         .map(|w| Phrase::word(w))
@@ -376,6 +427,7 @@ pub fn agent_tics_preset() -> Vec<Phrase> {
                 .iter()
                 .map(|(w, allowed)| Phrase::word_unless_followed_by(w, allowed)),
         )
+        .chain(advisory.iter().map(|(w, means)| Phrase::advisory(w, means)))
         .collect()
 }
 
@@ -803,23 +855,32 @@ fn banned_phrase(
         .iter()
         .filter(|(p, re)| matches_outside_its_idiom(p, re, &joined))
         .map(|(phrase, _)| {
-            let help = match &phrase.suggest {
-                Some(plain) => format!(
+            let help = match (&phrase.suggest, &phrase.note) {
+                (Some(plain), _) => format!(
                     "Write `{plain}`. The shorter word is not a lesser one, and \
                      every reader knows it."
                 ),
-                None => "This phrasing usually introduces narration rather than \
-                         information. Delete it or state the fact directly."
+                (None, Some(means)) => format!("Check the sense: {means}."),
+                (None, None) => "This phrasing usually introduces narration rather \
+                                 than information. Delete it or state the fact \
+                                 directly."
                     .to_string(),
             };
-            violation(
+            let mut v = violation(
                 BANNED_PHRASE,
                 block,
                 text,
                 cfg,
                 format!("matches banned phrase `{}`", phrase.display),
                 help,
-            )
+            );
+            // An advisory entry outranks the configured severity downwards only:
+            // a project running everything at `warning` does not get errors back
+            // from a preset, and an advisory stays advice at any setting.
+            if let Some(s) = phrase.severity {
+                v.severity = s;
+            }
+            v
         })
         .collect()
 }

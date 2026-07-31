@@ -18,12 +18,20 @@ use crate::lang::Registry;
 use crate::rules::{self, ALL_RULES};
 use schema::{ConfigFile, Settings};
 
+/// How hard a finding pushes. The three levels are the three things a reviewer
+/// can mean: fix this, you probably want to fix this, and here is a thing to
+/// know about the word you used.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
+    /// Must fix. The only level that fails a build.
     #[default]
     Error,
+    /// Should fix. Reported, exits 0.
     Warning,
+    /// Worth knowing. For words that are correct in their own domain and wrong
+    /// outside it, where banning is too strong and silence is too weak.
+    Note,
 }
 
 impl Severity {
@@ -31,6 +39,18 @@ impl Severity {
         match self {
             Severity::Error => "error",
             Severity::Warning => "warning",
+            Severity::Note => "note",
+        }
+    }
+
+    /// The word an agent reading a finding should act on. Spelled out because
+    /// "error" and "warning" mean different things to different readers, and an
+    /// agent given a list of findings needs to know which ones are optional.
+    pub fn obligation(&self) -> &'static str {
+        match self {
+            Severity::Error => "MUST fix",
+            Severity::Warning => "SHOULD fix",
+            Severity::Note => "MAY leave as is",
         }
     }
 }

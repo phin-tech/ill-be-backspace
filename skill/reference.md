@@ -11,7 +11,7 @@
 | `passive-voice` | a form of `be` plus a past participle | `require_agent` (true) — **off by default** |
 | `uniform-sentences` | sentence lengths vary less than `min_variation` | `min_variation` (0.30), `min_sentences` (5) — **off by default** |
 | `em-dash-habit` | em dashes exceed `max_rate` per hundred words | `max_rate` (2.0), `min_count` (2) — **off by default** |
-| `banned-phrase` | comment text matches a word or regex | `words`, `preset`, `extend`, `patterns` |
+| `banned-phrase` | comment text matches a word or regex | `words`, `preset` (`llm-tells`, `agent-tics`, `plain-words`; a list is allowed), `extend`, `patterns` |
 | `unapproved-word` | comment prose uses a word outside an approved vocabulary | `preset` (`plain-code`), `words`, `extend`, `approve_code_words` — **off by default** |
 | `suppression-needs-reason` | a suppression directive has no justification | `require_suppression_reason` (false) |
 
@@ -65,7 +65,7 @@ max_line_words = 12                # optional, any single line
 include_docstrings = false
 merge_across_blank_lines = true    # a blank line does not split a comment block
 require_suppression_reason = false
-severity = "error"                 # or "warning": reports but exits 0
+severity = "error"                 # or "warning" / "note": report but exit 0
 diff_only = true
 select = ["block-too-long", "comment-code-ratio"]
 ignore = []
@@ -100,7 +100,7 @@ max_rate = 2.0                     # em dashes per hundred words
 min_count = 2                      # below this the rate says nothing
 
 [rules.banned-phrase]
-preset = "llm-tells"               # the only preset; omit for none
+preset = ["llm-tells", "agent-tics", "plain-words"]   # one name or several
 words = ["substrate", "c++"]       # literal, escaped, whole-word, added on top
 extend = ["(?i)as an ai"]          # regexes, added on top
 patterns = []                      # regexes, replaces the accumulated list
@@ -134,12 +134,13 @@ block_comments = [{ open = "/*", close = "*/" }]
 backspace [PATHS...] [--max-lines N] [--max-ratio F] [--max-words N] [--max-chars N]
           [--include-docstrings] [--select RULE] [--ignore RULE] [--exclude GLOB]
           [--diff | --diff=REF | --all] [--config PATH]
-          [--format text|github|json] [--json] [--severity error|warning]
+          [--format text|github|json] [--json] [--severity error|warning|note]
           [--stats] [--fail-on-unknown] [--jobs N]
 
 backspace [PATHS...] --audit        # list comments, never fails
 
-backspace prose [FILE]             # check writing, not source; stdin by default
+backspace prose [PATHS...]         # check writing, not source; stdin by default
+                                   # directories are walked for .md .txt .rst .adoc
        [--max-line-words N] [--select RULE] [--json]
 
 backspace config show <PATH>

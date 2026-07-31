@@ -13,6 +13,31 @@ failing a build that passed before.
 
 ### Added
 
+- A third severity, `note`, and the obligation spelled out on every finding:
+  `[MUST fix]`, `[SHOULD fix]`, `[MAY leave as is]`. The reader of a finding is
+  often an agent deciding what to change, and "warning" does not tell it whether
+  it may decline. `note` never fails a build.
+- `agent-tics` preset: phrasing that marks an assistant talking about its own
+  work. Unlike `llm-tells`, every entry was measured against a human control
+  corpus — 4.3M comment words of Neovim, Emacs and WordPress — and kept only if
+  it appeared more in agent-written code. `load-bearing` (agent only),
+  `pathological` outside its idiom (19x), `inert` (14x), `stomping` (7x), plus
+  the reflexive agreement an assistant opens with.
+- `plain-words` preset: `utilize` → `use`, `in order to` → `to`. The finding
+  names the replacement rather than only the offence.
+- Advisory entries, which report at `note` and explain what a word is properly
+  for instead of banning it: `gate` is a conditional guard, `headline` is
+  org-mode's word for a heading, `inert` is HTML's non-reactive attribute. An
+  advisory stays advice whatever the configured severity.
+- `except_before` on a phrase, for words that are only a tic outside a fixed
+  idiom. Emacs uses `pathological` ten times and every one is `case`, `cases`,
+  `situations` or `behavior`; the agent corpus stretches it over `caller` and
+  `span`. Rust's `regex` has no lookaround, so the rule reads the following word
+  itself.
+- `preset` accepts a list: `preset = ["llm-tells", "agent-tics"]`.
+- `backspace prose` takes several paths and walks directories for `.md`,
+  `.markdown`, `.txt`, `.rst` and `.adoc`, so documentation can be reviewed the
+  way comments already are.
 - `explains-what-not-why` rule: flags a comment that both restates the code and
   gives no reason for it — at least `min_lines` (2) of prose, vocabulary overlap
   at or above `threshold` (0.6), and none of the built-in rationale markers
@@ -62,6 +87,12 @@ failing a build that passed before.
 
 ### Changed
 
+- `llm-tells` no longer claims to detect a machine. Measured against the human
+  control corpus, its entries point the other way: `Note that` appears 26.14
+  times per 100k comment words in human code and 0.51 in agent-written code, and
+  it produces more findings than the rest of the preset combined. The preset
+  still flags padding, which is worth flagging whoever wrote it; for authorship,
+  use `agent-tics`.
 - `backspace prose` now honours `select` rather than always applying
   `banned-phrase` and `block-too-long`. A project that selects neither gets
   neither; a configured word list still enables `banned-phrase` on its own.

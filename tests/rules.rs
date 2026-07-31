@@ -994,6 +994,35 @@ mod presets {
     }
 
     #[test]
+    fn a_borderline_word_advises_rather_than_bans() {
+        let cfg = with(backspace::rules::agent_tics_preset());
+        let v = check("# We gate the retry here.\nx = 1\n", "python", &cfg);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].severity, Severity::Note);
+        // The advice says what the word is for, not merely that it was seen.
+        assert!(v[0].help.contains("conditional guard"), "{}", v[0].help);
+    }
+
+    #[test]
+    fn an_advisory_stays_advice_even_at_error_severity() {
+        // Otherwise a project's global severity would turn a note into a gate,
+        // which is the one thing an advisory must never become.
+        let cfg = ResolvedConfig {
+            severity: Severity::Error,
+            ..with(backspace::rules::agent_tics_preset())
+        };
+        let v = check("# We gate the retry here.\nx = 1\n", "python", &cfg);
+        assert_eq!(v[0].severity, Severity::Note);
+    }
+
+    #[test]
+    fn obligations_are_distinct_per_level() {
+        assert_eq!(Severity::Error.obligation(), "MUST fix");
+        assert_eq!(Severity::Warning.obligation(), "SHOULD fix");
+        assert_eq!(Severity::Note.obligation(), "MAY leave as is");
+    }
+
+    #[test]
     fn presets_are_all_reachable_by_name() {
         for name in backspace::rules::PHRASE_PRESETS {
             assert!(

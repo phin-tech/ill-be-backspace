@@ -54,6 +54,7 @@ fn text(out: &mut impl Write, report: &Report, stats: bool) -> Result<()> {
         let (sev_style, sev) = match v.severity {
             Severity::Error => (red, "error"),
             Severity::Warning => (yellow, "warning"),
+            Severity::Note => (cyan, "note"),
         };
         writeln!(
             out,
@@ -71,7 +72,15 @@ fn text(out: &mut impl Write, report: &Report, stats: bool) -> Result<()> {
                 None => writeln!(out, "{dim}      | {line}{dim:#}")?,
             }
         }
-        writeln!(out, "{cyan}      = help:{cyan:#} {}", wrap_help(&v.help))?;
+        // The obligation is spelled out rather than left to be inferred from the
+        // severity word, because the reader is often an agent deciding what to
+        // change and "warning" does not say whether it may decline.
+        writeln!(
+            out,
+            "{cyan}      = help:{cyan:#} {} [{}]",
+            wrap_help(&v.help),
+            v.severity.obligation()
+        )?;
         writeln!(out)?;
     }
 
@@ -143,9 +152,11 @@ fn wrap_help(help: &str) -> String {
 
 fn github(out: &mut impl Write, report: &Report) -> Result<()> {
     for v in &report.violations {
+        // GitHub has no `note` level below `notice`, which is the closest fit.
         let level = match v.severity {
             Severity::Error => "error",
             Severity::Warning => "warning",
+            Severity::Note => "notice",
         };
         // Newlines are encoded as %0A per the workflow-command format.
         writeln!(

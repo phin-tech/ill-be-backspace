@@ -274,6 +274,28 @@ completely than native speakers do. Simplified Technical English was designed to
 the intent. So this ships off, it ships without an `error` default in any config
 we hand you, and it is a suggestion in a review — not a gate in your CI.
 
+## MUST, SHOULD, MAY
+
+Every finding says how hard it's pushing, because the reader is often an agent
+deciding what to change:
+
+```console
+$ backspace src/
+src/api.py:1:1: error: banned-phrase: matches banned phrase `utilize`
+      = help: Write `use`. The shorter word is not a lesser one. [MUST fix]
+
+src/api.py:8:1: note: banned-phrase: matches banned phrase `gate`
+      = help: Check the sense: a gate is a conditional guard — `gated on the
+             flag`. If you mean `controls` or `limits`, say that. [MAY leave as is]
+```
+
+`error` fails the build, `warning` reports and exits 0, `note` is a word about a
+word. Some vocabulary is right in one domain and a tic in another — `gate` is a
+conditional guard, `headline` is org-mode's term for a heading, `inert` is an
+HTML attribute — and for those, banning is too strong and silence is too weak.
+An advisory stays advice whatever severity you configure; a preset can never
+hand your build an error you didn't ask for.
+
 ## The Machine Wrote This
 
 Three tells, in descending order of how long they'll stay true.
@@ -309,15 +331,43 @@ design note in `docs/harper-integration.md` was written by a model and scores
 0.63 — squarely human-looking — because it was revised. Treat a finding as
 information, never as proof.
 
-**Vocabulary and shape.** The `llm-tells` preset carries both, and the
-difference matters:
+**Vocabulary — and here the folklore is simply wrong.** We measured every
+candidate word against 4.3M words of comment prose from Neovim, Emacs and
+WordPress, all written before any of this existed, and against 586k words of
+agent-written code. Rates per 100k comment words:
 
-| kind | examples | shelf life |
-|---|---|---|
-| words | `delve`, `tapestry`, `testament to`, `In conclusion` | short — every model generation has new favourites |
-| shapes | `it's not just X — it's Y`, `not only X but Y`, `it isn't about X, it's about Y` | long — the antithesis construction has outlasted several |
+| phrase | human | agent | |
+|---|---|---|---|
+| `Note that` | 26.14 | 0.51 | humans use it **50x more** |
+| `In other words` | 1.05 | 0.00 | human only |
+| `not only X but Y` | 0.68 | 0.00 | human only |
+| `delve` | 0.05 | 0.00 | human only |
+| `stomping` | 0.07 | 0.51 | 7x |
+| `inert` | 0.35 | 4.95 | 14x |
+| `pathological` (outside its idiom) | 0.12 | 2.22 | 19x |
+| `load-bearing` | 0.00 | 6.14 | **agent only** |
 
-Prune the word half as it dates. The shape half is the part worth keeping.
+So `llm-tells` finds *narration*, not authorship — worth flagging whoever wrote
+it, but not evidence of anything. What actually discriminates is metaphor
+standing in for a specific statement, and that's the `agent-tics` preset:
+
+```toml
+[rules.banned-phrase]
+preset = ["llm-tells", "agent-tics"]
+```
+
+The control corpus earned its keep twice over. `gate` looked damning at 260 uses
+until we read them — `is gated on`, `auth gate` — and `headline` appears **249
+times in Emacs**, because it's org-mode's word for a heading. Neither would have
+survived counting alone. Both now ship as advisories rather than bans.
+
+And `pathological` needed a mechanism, not a verdict: Emacs uses it ten times and
+every one is `pathological case`. The agent corpus stretches it over `caller`,
+`span`, `scoped history`. So the entry carries an exception list and the rule
+reads the *next word* before deciding.
+
+One honest limit: the agent corpus is seven times smaller, so "human only" on a
+phrase with two hits proves nothing. `Note that` isn't in that category.
 
 All three work on writing as well as on code:
 
