@@ -13,6 +13,7 @@ pub const BLOCK_TOO_LONG: &str = "block-too-long";
 pub const COMMENT_CODE_RATIO: &str = "comment-code-ratio";
 pub const BANNED_PHRASE: &str = "banned-phrase";
 pub const COMMENT_RESTATES_CODE: &str = "comment-restates-code";
+pub const UNAPPROVED_WORD: &str = "unapproved-word";
 pub const SUPPRESSION_NEEDS_REASON: &str = "suppression-needs-reason";
 
 /// Every rule id the tool knows about, for `--select` validation and `explain`.
@@ -21,8 +22,22 @@ pub const ALL_RULES: &[&str] = &[
     COMMENT_CODE_RATIO,
     BANNED_PHRASE,
     COMMENT_RESTATES_CODE,
+    UNAPPROVED_WORD,
     SUPPRESSION_NEEDS_REASON,
 ];
+
+/// An approved vocabulary for comment prose, in the spirit of Simplified
+/// Technical English without reproducing its licensed dictionary. Small on
+/// purpose: words in the code beneath a comment are approved automatically, so
+/// only the prose around them needs listing.
+pub fn plain_code_vocabulary() -> Vec<String> {
+    include_str!("../../vocabularies/plain-code.txt")
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .map(|l| l.to_ascii_lowercase())
+        .collect()
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Violation {
@@ -126,13 +141,29 @@ pub fn compile_phrases(phrases: &[Phrase]) -> Result<Vec<(String, Regex)>, Strin
 
 pub(crate) struct Context {
     pub phrases: Vec<(String, Regex)>,
+    pub approved: std::collections::HashSet<String>,
+    /// Identifiers from the whole file, treated as approved vocabulary.
+    pub code_vocabulary: std::collections::HashSet<String>,
 }
 
 impl Context {
     pub fn new(cfg: &ResolvedConfig) -> Result<Self, String> {
         Ok(Self {
             phrases: compile_phrases(&cfg.banned_phrases)?,
+            approved: cfg
+                .approved_words
+                .iter()
+                .map(|w| w.to_ascii_lowercase())
+                .collect(),
+            code_vocabulary: Default::default(),
         })
+    }
+
+    /// Records the file's identifiers, so a project's own terminology is
+    /// approved without anyone restating it in configuration.
+    pub fn with_code(mut self, code: &str) -> Self {
+        self.code_vocabulary = restate::words_of(code).into_iter().collect();
+        self
     }
 }
 
@@ -156,7 +187,55 @@ pub(crate) fn check_block(
     if cfg.rule_enabled(COMMENT_RESTATES_CODE) {
         out.extend(comment_restates_code(block, text, cfg));
     }
+    if cfg.rule_enabled(UNAPPROVED_WORD) {
+        out.extend(unapproved_word(block, text, cfg, ctx));
+    }
     out
+}
+
+/// Flags prose outside a configured vocabulary. An empty list means no
+/// vocabulary was configured, which is not the same as banning everything.
+fn unapproved_word(
+    block: &CommentBlock,
+    text: &[String],
+    cfg: &ResolvedConfig,
+    ctx: &Context,
+) -> Option<Violation> {
+    if ctx.approved.is_empty() {
+        return None;
+    }
+
+    let mut allowed = ctx.approved.clone();
+    if cfg.approve_code_words {
+        // A project's own terminology is defined by its identifiers, so there is
+        // no reason to make someone restate it in configuration.
+        allowed.extend(restate::words_of(&block.following_code.join(" ")));
+        allowed.extend(ctx.code_vocabulary.iter().cloned());
+    }
+
+    let mut unknown: Vec<String> = restate::words_of(&text.join(" "))
+        .into_iter()
+        // A bare number or a version like `500ms` carries no vocabulary.
+        .filter(|w| !w.chars().next().is_some_and(|c| c.is_ascii_digit()))
+        .filter(|w| !allowed.contains(w))
+        .collect();
+    unknown.sort();
+    unknown.dedup();
+    if unknown.is_empty() {
+        return None;
+    }
+
+    Some(violation(
+        UNAPPROVED_WORD,
+        block,
+        text,
+        cfg,
+        format!("outside the approved vocabulary: {}", unknown.join(", ")),
+        "Use a word from the approved list, or add this one with \
+         `[rules.unapproved-word] extend = [...]` if it is part of the \
+         project's vocabulary."
+            .to_string(),
+    ))
 }
 
 fn comment_restates_code(
@@ -361,6 +440,12 @@ pub fn explain(rule: &str) -> Option<&'static str> {
              beneath it. Identifiers are split on case and underscores before \
              comparison. Controlled by `restate_threshold` and \
              `restate_min_words`; off by default."
+        }
+        UNAPPROVED_WORD => {
+            "Flags comment prose using words outside a configured vocabulary. \
+             Words appearing in the code beneath the comment are approved \
+             automatically, so project terminology needs no entry. The \
+             `plain-code` preset ships a small starter list; off by default."
         }
         SUPPRESSION_NEEDS_REASON => {
             "Fires when `require_suppression_reason` is set and a `backspace: \

@@ -707,3 +707,134 @@ mod max_line_words {
         assert_eq!(check(src, "python", &cfg).len(), 1);
     }
 }
+
+mod unapproved_word {
+    use super::*;
+
+    /// Known limitation: the vocabulary holds base forms, so inflections are
+    /// reported as unapproved. `sort` is listed, `sorted` is not. Stemming would
+    /// close this; until then the preset needs `extend` for real use.
+    #[test]
+    fn inflections_are_not_yet_recognised() {
+        let cfg = ResolvedConfig {
+            select: ["unapproved-word"].iter().map(|s| s.to_string()).collect(),
+            approved_words: backspace::rules::plain_code_vocabulary(),
+            ..Default::default()
+        };
+        let v = check("# sorted before the search\nx = 1\n", "python", &cfg);
+        assert_eq!(v.len(), 1, "documents the gap rather than hiding it");
+        assert!(v[0].message.contains("sorted"), "{}", v[0].message);
+    }
+
+    fn approved(words: &[&str]) -> ResolvedConfig {
+        ResolvedConfig {
+            select: ["unapproved-word"].iter().map(|s| s.to_string()).collect(),
+            approved_words: words.iter().map(|w| w.to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn is_off_by_default() {
+        let found = check(
+            "# xyzzy plugh\nx = 1\n",
+            "python",
+            &ResolvedConfig::default(),
+        );
+        assert!(
+            !rule_ids(&found).contains(&"unapproved-word"),
+            "{:?}",
+            rule_ids(&found)
+        );
+    }
+
+    #[test]
+    fn is_inert_with_an_empty_list() {
+        // An empty allow-list means "no vocabulary configured", not "ban everything".
+        assert!(check("# anything at all here\nx = 1\n", "python", &approved(&[])).is_empty());
+    }
+
+    #[test]
+    fn accepts_a_comment_within_the_vocabulary() {
+        let cfg = approved(&["retry", "once", "server", "fails"]);
+        assert!(check("# retry once if the server fails\nx = 1\n", "python", &cfg).is_empty());
+    }
+
+    #[test]
+    fn flags_a_word_outside_the_vocabulary() {
+        let cfg = approved(&["retry", "once"]);
+        let v = check("# retry once, then obfuscate\nx = 1\n", "python", &cfg);
+        assert_eq!(rule_ids(&v), ["unapproved-word"]);
+        assert!(v[0].message.contains("obfuscate"), "{}", v[0].message);
+    }
+
+    #[test]
+    fn stopwords_and_short_words_are_always_allowed() {
+        // Nobody wants to enumerate "the", "a", "is" in an approved list.
+        let cfg = approved(&["retry"]);
+        assert!(check("# the retry is on\nx = 1\n", "python", &cfg).is_empty());
+    }
+
+    #[test]
+    fn is_case_insensitive() {
+        let cfg = approved(&["retry"]);
+        assert!(check("# Retry RETRY retry\nx = 1\n", "python", &cfg).is_empty());
+    }
+
+    #[test]
+    fn words_from_the_surrounding_code_are_approved() {
+        // A project's own vocabulary should not need restating in config.
+        let cfg = approved(&["the", "holds", "state"]);
+        let src = "# the idempotency_token holds state\nidempotency_token = mint()\n";
+        assert!(check(src, "python", &cfg).is_empty());
+    }
+
+    #[test]
+    fn code_approval_splits_identifiers() {
+        let cfg = approved(&["reset"]);
+        let src = "# reset the retryCounter\nretryCounter = 0\n";
+        assert!(check(src, "python", &cfg).is_empty());
+    }
+
+    #[test]
+    fn code_approval_can_be_disabled() {
+        let cfg = ResolvedConfig {
+            approve_code_words: false,
+            ..approved(&["reset"])
+        };
+        let src = "# reset the retryCounter\nretryCounter = 0\n";
+        assert_eq!(check(src, "python", &cfg).len(), 1);
+    }
+
+    #[test]
+    fn numbers_and_versions_are_allowed() {
+        let cfg = approved(&["retry", "after"]);
+        assert!(check("# retry after 500ms\nx = 1\n", "python", &cfg).is_empty());
+    }
+
+    #[test]
+    fn reports_every_unapproved_word_in_one_finding() {
+        let cfg = approved(&["retry"]);
+        let v = check("# retry obfuscate defenestrate\nx = 1\n", "python", &cfg);
+        assert_eq!(v.len(), 1, "one finding per block, not per word");
+        assert!(v[0].message.contains("obfuscate"), "{}", v[0].message);
+        assert!(v[0].message.contains("defenestrate"), "{}", v[0].message);
+    }
+
+    #[test]
+    fn the_plain_code_preset_accepts_common_technical_prose() {
+        let cfg = ResolvedConfig {
+            select: ["unapproved-word"].iter().map(|s| s.to_string()).collect(),
+            approved_words: backspace::rules::plain_code_vocabulary(),
+            ..Default::default()
+        };
+        let comment = "# retry once: the upstream returns an error on cold start";
+        let src = format!("{comment}\nx = 1\n");
+        let v = check(&src, "python", &cfg);
+        assert!(
+            v.is_empty(),
+            "{comment}\n  -> {:?}",
+            v.first().map(|x| &x.message)
+        );
+    }
+}

@@ -94,6 +94,21 @@ pub struct RulesSection {
     pub comment_code_ratio: Option<RatioRule>,
     #[serde(rename = "banned-phrase")]
     pub banned_phrase: Option<PhraseRule>,
+    #[serde(rename = "unapproved-word")]
+    pub unapproved_word: Option<VocabularyRule>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct VocabularyRule {
+    /// A named vocabulary, currently only `plain-code`.
+    pub preset: Option<String>,
+    /// Replaces the preset entirely.
+    pub words: Option<Vec<String>>,
+    /// Added on top of the preset.
+    pub extend: Option<Vec<String>>,
+    /// Treat identifiers in the code beneath a comment as approved.
+    pub approve_code_words: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

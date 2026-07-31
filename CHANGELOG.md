@@ -29,6 +29,14 @@ failing a build that passed before.
 - `llm-tells` findings quote the phrase a reader recognises rather than the
   regex behind it: `Note that` instead of `\bNote that\b`.
 
+- `unapproved-word` rule: flags comment prose outside a configured vocabulary.
+  Identifiers from the whole file are approved automatically, so a project's own
+  terminology needs no entry. Ships a `plain-code` preset built on the EF 3000
+  most-common English words plus systems terms. **Off by default, and currently
+  a starting point rather than a finished vocabulary** — measured against three
+  real repositories it still reports roughly 1,100 findings, mostly inflections
+  (`sorted` where `sort` is listed). A stemmer would close most of that gap.
+
 ### Fixed
 
 - A path that does not exist is now an error exiting `2`, rather than reporting

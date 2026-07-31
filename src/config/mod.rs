@@ -122,6 +122,11 @@ pub struct ResolvedConfig {
 
     pub banned_phrases: Vec<crate::rules::Phrase>,
 
+    /// Vocabulary for `unapproved-word`. Empty means no vocabulary configured.
+    pub approved_words: Vec<String>,
+    /// Treat identifiers in the code beneath a comment as approved.
+    pub approve_code_words: bool,
+
     pub select: BTreeSet<String>,
     pub ignore: BTreeSet<String>,
     pub severity: Severity,
@@ -142,6 +147,8 @@ impl Default for ResolvedConfig {
             restate_threshold: 0.8,
             restate_min_words: 6,
             banned_phrases: Vec::new(),
+            approved_words: Vec::new(),
+            approve_code_words: true,
             select: ["block-too-long", "comment-code-ratio"]
                 .iter()
                 .map(|s| s.to_string())
@@ -312,6 +319,13 @@ impl Config {
                     .collect();
                 rules::compile_phrases(&all).map_err(|e| anyhow::anyhow!(e))?;
             }
+            if let Some(v) = s.rules.as_ref().and_then(|r| r.unapproved_word.as_ref()) {
+                if let Some(preset) = &v.preset {
+                    if preset != "plain-code" {
+                        bail!("unknown vocabulary preset `{preset}` (known: plain-code)");
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -404,6 +418,8 @@ const TRACKED_KEYS: &[&str] = &[
     "restate_threshold",
     "restate_min_words",
     "banned_phrases",
+    "approved_words",
+    "approve_code_words",
     "select",
     "ignore",
     "severity",
@@ -473,6 +489,23 @@ fn apply(rc: &mut ResolvedConfig, s: &Settings, layer: Layer, prov: &mut Provena
         if l.max_line_words.is_some() {
             rc.max_line_words = l.max_line_words;
             prov.set("max_line_words", layer);
+        }
+    }
+    if let Some(v) = &r.unapproved_word {
+        let mut words = match (&v.words, &v.preset) {
+            (Some(w), _) => w.clone(),
+            (None, Some(_)) => rules::plain_code_vocabulary(),
+            (None, None) => rc.approved_words.clone(),
+        };
+        if let Some(extra) = &v.extend {
+            words.extend(extra.iter().cloned());
+        }
+        rc.approved_words = words;
+        prov.set("approved_words", layer);
+        set!(rc, prov, layer, approve_code_words, v.approve_code_words);
+
+        if !rc.approved_words.is_empty() && !rc.ignore.contains(rules::UNAPPROVED_WORD) {
+            rc.select.insert(rules::UNAPPROVED_WORD.to_string());
         }
     }
     if let Some(x) = &r.comment_restates_code {

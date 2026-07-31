@@ -7,8 +7,19 @@
 use crate::lang::{DocstringStyle, LanguageSpec};
 use crate::scan::{CommentBlock, CommentKind, ScanOptions};
 
-pub(crate) fn scan_impl(src: &str, spec: &LanguageSpec, opts: &ScanOptions) -> Vec<CommentBlock> {
-    group(&tokenize(src, spec), opts)
+pub(crate) fn scan_impl(
+    src: &str,
+    spec: &LanguageSpec,
+    opts: &ScanOptions,
+) -> (Vec<CommentBlock>, String) {
+    let lines = tokenize(src, spec);
+    let code = lines
+        .iter()
+        .filter(|l| l.has_code)
+        .map(|l| l.code_text.trim())
+        .collect::<Vec<_>>()
+        .join(" ");
+    (group(&lines, opts), code)
 }
 
 #[derive(Debug, Clone)]

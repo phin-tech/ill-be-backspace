@@ -68,5 +68,16 @@ impl Default for ScanOptions {
 }
 
 pub fn scan(source: &str, spec: &LanguageSpec, opts: &ScanOptions) -> Vec<CommentBlock> {
+    state::scan_impl(source, spec, opts).0
+}
+
+/// Comment blocks plus every non-comment line in the file, joined. The code text
+/// is what lets vocabulary approval span the whole file rather than only the
+/// lines directly beneath a comment.
+pub fn scan_with_code(
+    source: &str,
+    spec: &LanguageSpec,
+    opts: &ScanOptions,
+) -> (Vec<CommentBlock>, String) {
     state::scan_impl(source, spec, opts)
 }

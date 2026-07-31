@@ -151,11 +151,11 @@ fn check_file(path: &Path, config: &Config, opts: &RunOptions) -> Result<FileOut
     };
 
     let cfg = config.resolve(path, &spec.name);
+    let (blocks, code) = scan::scan_with_code(&source, spec, &cfg.scan_options());
     let ctx = rules::Context::new(&cfg)
         .map_err(anyhow::Error::msg)
-        .with_context(|| format!("invalid configuration for {}", path.display()))?;
-
-    let blocks = scan::scan(&source, spec, &cfg.scan_options());
+        .with_context(|| format!("invalid configuration for {}", path.display()))?
+        .with_code(&code);
     let mut out = Vec::new();
     let mut audit = Vec::new();
 

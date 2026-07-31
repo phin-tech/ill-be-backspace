@@ -9,20 +9,112 @@ use std::collections::HashSet;
 
 /// Words too common to signal anything. Overlap on `the` means nothing.
 const STOPWORDS: &[&str] = &[
-    "the", "and", "for", "with", "that", "this", "these", "those", "from", "into", "onto", "are",
-    "was", "were", "been", "being", "have", "has", "had", "not", "but", "its", "it's", "you",
-    "your", "our", "we", "us", "they", "them", "their", "then", "than", "when", "while", "which",
-    "what", "who", "whom", "here", "there", "will", "would", "shall", "should", "can", "could",
-    "may", "might", "must", "any", "all", "each", "every", "some", "one", "two", "also", "just",
-    "only", "very", "much", "more", "most", "less", "least", "same", "other", "such", "how", "why",
-    "does", "did", "done", "let", "via", "per", "out", "off", "over", "under", "about",
+    "doesn't",
+    "don't",
+    "isn't",
+    "aren't",
+    "won't",
+    "can't",
+    "didn't",
+    "hasn't",
+    "haven't",
+    "wasn't",
+    "weren't",
+    "shouldn't",
+    "wouldn't",
+    "couldn't",
+    "it's",
+    "the",
+    "and",
+    "for",
+    "with",
+    "that",
+    "this",
+    "these",
+    "those",
+    "from",
+    "into",
+    "onto",
+    "are",
+    "was",
+    "were",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "not",
+    "but",
+    "its",
+    "it's",
+    "you",
+    "your",
+    "our",
+    "we",
+    "us",
+    "they",
+    "them",
+    "their",
+    "then",
+    "than",
+    "when",
+    "while",
+    "which",
+    "what",
+    "who",
+    "whom",
+    "here",
+    "there",
+    "will",
+    "would",
+    "shall",
+    "should",
+    "can",
+    "could",
+    "may",
+    "might",
+    "must",
+    "any",
+    "all",
+    "each",
+    "every",
+    "some",
+    "one",
+    "two",
+    "also",
+    "just",
+    "only",
+    "very",
+    "much",
+    "more",
+    "most",
+    "less",
+    "least",
+    "same",
+    "other",
+    "such",
+    "how",
+    "why",
+    "does",
+    "did",
+    "done",
+    "let",
+    "via",
+    "per",
+    "out",
+    "off",
+    "over",
+    "under",
+    "about",
 ];
 
 /// Splits text into lowercase content words: three characters or more, not a
 /// stopword.
 fn content_words(text: &str) -> Vec<String> {
     let stop: HashSet<&str> = STOPWORDS.iter().copied().collect();
-    text.split(|c: char| !c.is_alphanumeric())
+    // Apostrophes are word-internal, so `doesn't` yields `doesn't` rather than a
+    // stray `doesn`.
+    text.split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '\u{2019}')
         .flat_map(split_case)
         .map(|w| w.to_lowercase())
         .filter(|w| w.chars().count() >= 3 && !stop.contains(w.as_str()))
@@ -96,6 +188,12 @@ fn is_code_sample(line: &str) -> bool {
         })
         .count();
     punct * 4 > total
+}
+
+/// Content words of a text, exposed so the vocabulary rule can share exactly the
+/// tokenisation the overlap rule uses.
+pub fn words_of(text: &str) -> Vec<String> {
+    content_words(text)
 }
 
 /// Fraction of the comment's content words that also appear in the code, or

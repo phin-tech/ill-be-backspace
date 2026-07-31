@@ -73,8 +73,8 @@ pub fn try_check_source(
     spec: &LanguageSpec,
     cfg: &ResolvedConfig,
 ) -> Result<Vec<Violation>, String> {
-    let ctx = rules::Context::new(cfg)?;
-    let blocks = scan(source, spec, &cfg.scan_options());
+    let (blocks, code) = scan::scan_with_code(source, spec, &cfg.scan_options());
+    let ctx = rules::Context::new(cfg)?.with_code(&code);
     let mut out = Vec::new();
 
     for block in &blocks {

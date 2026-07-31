@@ -259,6 +259,8 @@ fn value_of(c: &backspace::config::ResolvedConfig, key: &str) -> String {
         "restate_threshold" => format!("{:.2}", c.restate_threshold),
         "restate_min_words" => c.restate_min_words.to_string(),
         "banned_phrases" => format!("{} pattern(s)", c.banned_phrases.len()),
+        "approved_words" => format!("{} word(s)", c.approved_words.len()),
+        "approve_code_words" => c.approve_code_words.to_string(),
         "select" => c.select.iter().cloned().collect::<Vec<_>>().join(","),
         "ignore" => c.ignore.iter().cloned().collect::<Vec<_>>().join(","),
         "severity" => c.severity.as_str().to_string(),
