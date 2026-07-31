@@ -85,19 +85,24 @@ impl Phrase {
 /// Phrases that reliably mark comments written to sound thorough rather than to
 /// inform. Opt-in: enabling this by default would make the tool preachy.
 pub fn llm_tells_preset() -> Vec<Phrase> {
-    [
-        r"Verified \d{4}-\d{2}-\d{2}",
-        r"it does NOT\b",
-        r"\bNote that\b",
-        r"\bIt'?s worth noting\b",
-        r"\bIn other words\b",
-        r"\bThis is important because\b",
-        r"\bAs mentioned above\b",
-        r"\bKeep in mind that\b",
-    ]
-    .iter()
-    .map(|p| Phrase::pattern(p))
-    .collect()
+    // Word-level entries go through `Phrase::word` so a finding quotes the
+    // phrase a reader recognises rather than the regex behind it.
+    let words = [
+        "Note that",
+        "It's worth noting",
+        "In other words",
+        "This is important because",
+        "As mentioned above",
+        "Keep in mind that",
+        "it does NOT",
+    ];
+    let patterns = [r"Verified \d{4}-\d{2}-\d{2}"];
+
+    words
+        .iter()
+        .map(|w| Phrase::word(w))
+        .chain(patterns.iter().map(|p| Phrase::pattern(p)))
+        .collect()
 }
 
 /// Compiles phrase patterns, defaulting to case-insensitive unless the pattern

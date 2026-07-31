@@ -33,8 +33,14 @@ cwd=$(jq -r '.cwd // empty' <<<"$input")
 # Nothing to check: a tool call without a file, or a file that no longer exists.
 [ -n "$file" ] && [ -f "$file" ] || exit 0
 
-bin="${BACKSPACE_BIN:-backspace}"
-command -v "$bin" >/dev/null 2>&1 || exit 0
+bin="${BACKSPACE_BIN:-}"
+if [ -z "$bin" ]; then
+  # A local release build wins, so working on backspace exercises the code
+  # under development rather than the installed version.
+  local_build="${CLAUDE_PROJECT_DIR:-.}/target/release/backspace"
+  if [ -x "$local_build" ]; then bin="$local_build"; else bin="backspace"; fi
+fi
+command -v "$bin" >/dev/null 2>&1 || [ -x "$bin" ] || exit 0
 
 cd "${cwd:-$(dirname "$file")}" 2>/dev/null || exit 0
 

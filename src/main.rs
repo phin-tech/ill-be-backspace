@@ -41,6 +41,14 @@ fn run() -> Result<u8> {
         args.paths.clone()
     };
 
+    // A path that does not exist is a mistake, not an empty result set: exiting
+    // 0 would let a typo silently pass a CI job that checked nothing.
+    for p in &paths {
+        if !p.exists() {
+            anyhow::bail!("no such file or directory: {}", p.display());
+        }
+    }
+
     Config::validate_rule_ids(&args.select)?;
     Config::validate_rule_ids(&args.ignore)?;
 

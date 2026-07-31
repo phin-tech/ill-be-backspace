@@ -614,3 +614,32 @@ mod prose_mode {
         assert_eq!(prose(dir.path(), "", &[]).1, Some(0));
     }
 }
+
+mod missing_paths {
+    use super::*;
+
+    #[test]
+    fn a_path_that_does_not_exist_is_an_error() {
+        // Silently reporting "0 files checked" on a typo means a CI job passes
+        // while checking nothing at all.
+        bin().arg("no-such-file.py").arg("--all").assert().code(2);
+    }
+
+    #[test]
+    fn the_error_names_the_missing_path() {
+        let out = bin().arg("no-such-file.py").arg("--all").output().unwrap();
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(err.contains("no-such-file.py"), "{err}");
+    }
+
+    #[test]
+    fn an_existing_path_is_unaffected() {
+        let dir = project(&[("a.py", "x = 1\n")]);
+        bin().arg(dir.path()).arg("--all").assert().success();
+    }
+
+    #[test]
+    fn a_mistyped_subcommand_does_not_masquerade_as_a_path() {
+        bin().arg("prosee").assert().code(2);
+    }
+}

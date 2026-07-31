@@ -26,6 +26,14 @@ failing a build that passed before.
 
 - The `banned-phrase` message reads "matches banned phrase" rather than "comment
   matches banned phrase", since it now applies to prose as well as comments.
+- `llm-tells` findings quote the phrase a reader recognises rather than the
+  regex behind it: `Note that` instead of `\bNote that\b`.
+
+### Fixed
+
+- A path that does not exist is now an error exiting `2`, rather than reporting
+  "0 files checked" and exiting `0`. A typo in a CI invocation previously passed
+  while checking nothing.
 
 ## [0.1.3] — 2026-07-29
 

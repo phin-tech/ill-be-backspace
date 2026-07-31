@@ -35,8 +35,14 @@ cwd=$(jq -r '.cwd // empty' <<<"$input")
 # Never re-enter: a blocked Stop triggers another turn, which triggers this hook.
 [ "$(jq -r '.stop_hook_active // false' <<<"$input")" = "true" ] && exit 0
 
-bin="${BACKSPACE_BIN:-backspace}"
-command -v "$bin" >/dev/null 2>&1 || exit 0
+bin="${BACKSPACE_BIN:-}"
+if [ -z "$bin" ]; then
+  # A local release build wins, so working on backspace exercises the code
+  # under development rather than the installed version.
+  local_build="${CLAUDE_PROJECT_DIR:-.}/target/release/backspace"
+  if [ -x "$local_build" ]; then bin="$local_build"; else bin="backspace"; fi
+fi
+command -v "$bin" >/dev/null 2>&1 || [ -x "$bin" ] || exit 0
 cd "${cwd:-.}" 2>/dev/null || exit 0
 
 report=$(printf '%s' "$message" | "$bin" prose --json 2>/dev/null)
