@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::Path;
 
-use backspace::config::{Config, Layer};
+use backspace::config::{Config, Layer, ResolvedConfig};
 use tempfile::TempDir;
 
 /// Builds a project tree from `(relative path, contents)` pairs.
@@ -266,6 +266,50 @@ mod rules_section {
             .iter()
             .any(|p| p.display.contains("as an ai")));
         assert!(cfg.banned_phrases.len() > 1);
+    }
+
+    #[test]
+    fn what_not_why_settings_are_read_from_their_own_table() {
+        let dir = project(&[(
+            ".backspace.toml",
+            "[rules.explains-what-not-why]\nthreshold = 0.5\nmin_lines = 3\n",
+        )]);
+        let cfg = discover(dir.path()).resolve(Path::new("a.py"), "python");
+        assert_eq!(cfg.what_not_why_threshold, 0.5);
+        assert_eq!(cfg.what_not_why_min_lines, 3);
+    }
+
+    #[test]
+    fn rationale_markers_extend_the_built_in_list() {
+        let built_in = ResolvedConfig::default().rationale_markers.len();
+        let dir = project(&[(
+            ".backspace.toml",
+            "[rules.explains-what-not-why]\nextend = [\"rationale\"]\n",
+        )]);
+        let cfg = discover(dir.path()).resolve(Path::new("a.py"), "python");
+        assert_eq!(cfg.rationale_markers.len(), built_in + 1);
+        assert!(cfg.rationale_markers.iter().any(|m| m == "rationale"));
+    }
+
+    #[test]
+    fn markers_replace_the_built_in_list_outright() {
+        let dir = project(&[(
+            ".backspace.toml",
+            "[rules.explains-what-not-why]\nmarkers = [\"rationale\"]\n",
+        )]);
+        let cfg = discover(dir.path()).resolve(Path::new("a.py"), "python");
+        assert_eq!(cfg.rationale_markers, ["rationale"]);
+    }
+
+    #[test]
+    fn passive_voice_can_be_widened_to_agentless_passives() {
+        assert!(ResolvedConfig::default().passive_requires_agent);
+        let dir = project(&[(
+            ".backspace.toml",
+            "[rules.passive-voice]\nrequire_agent = false\n",
+        )]);
+        let cfg = discover(dir.path()).resolve(Path::new("a.py"), "python");
+        assert!(!cfg.passive_requires_agent);
     }
 
     #[test]

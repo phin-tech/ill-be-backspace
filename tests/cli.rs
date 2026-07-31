@@ -609,6 +609,19 @@ mod prose_mode {
     }
 
     #[test]
+    fn passive_voice_applies_to_prose_when_selected() {
+        // The one rule that reads the same in writing as in a comment — but only
+        // when asked for, so prose mode stays about the word list by default.
+        let dir = project(&[(".backspace.toml", "max_lines = 5\n")]);
+        let text = "The release was approved by the reviewer.\n";
+        assert_eq!(prose(dir.path(), text, &[]).1, Some(0));
+
+        let (out, code) = prose(dir.path(), text, &["--select", "passive-voice"]);
+        assert_eq!(code, Some(1), "{out}");
+        assert!(out.contains("was approved by the reviewer"), "{out}");
+    }
+
+    #[test]
     fn empty_input_is_clean() {
         let dir = with_words("\"substrate\"");
         assert_eq!(prose(dir.path(), "", &[]).1, Some(0));

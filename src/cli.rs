@@ -42,6 +42,9 @@ pub enum Command {
         /// Maximum words on a single line.
         #[arg(long)]
         max_line_words: Option<usize>,
+        /// Enable only these rules. Rules needing code are ignored here.
+        #[arg(long, value_name = "RULE")]
+        select: Vec<String>,
         #[arg(long)]
         json: bool,
     },

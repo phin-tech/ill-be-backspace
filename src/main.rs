@@ -172,6 +172,7 @@ fn subcommand(command: &Command, cli: &Cli) -> Result<u8> {
         Command::Prose {
             file,
             max_line_words,
+            select,
             json,
         } => {
             let text = match file {
@@ -184,8 +185,10 @@ fn subcommand(command: &Command, cli: &Cli) -> Result<u8> {
                 }
             };
 
+            Config::validate_rule_ids(select)?;
             let mut config = load_config(cli)?;
             config.cli.max_line_words = *max_line_words;
+            config.cli.select = select.clone();
             let name = file
                 .as_deref()
                 .map(|p| p.display().to_string())
@@ -258,6 +261,14 @@ fn value_of(c: &backspace::config::ResolvedConfig, key: &str) -> String {
         "ratio_min_lines" => c.ratio_min_lines.to_string(),
         "restate_threshold" => format!("{:.2}", c.restate_threshold),
         "restate_min_words" => c.restate_min_words.to_string(),
+        "what_not_why_threshold" => format!("{:.2}", c.what_not_why_threshold),
+        "what_not_why_min_lines" => c.what_not_why_min_lines.to_string(),
+        "rationale_markers" => format!("{} marker(s)", c.rationale_markers.len()),
+        "passive_requires_agent" => c.passive_requires_agent.to_string(),
+        "min_variation" => format!("{:.2}", c.min_variation),
+        "min_sentences" => c.min_sentences.to_string(),
+        "max_em_dash_rate" => format!("{:.2}", c.max_em_dash_rate),
+        "min_em_dashes" => c.min_em_dashes.to_string(),
         "banned_phrases" => format!("{} pattern(s)", c.banned_phrases.len()),
         "approved_words" => format!("{} word(s)", c.approved_words.len()),
         "approve_code_words" => c.approve_code_words.to_string(),

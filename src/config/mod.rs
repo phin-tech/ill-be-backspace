@@ -120,6 +120,27 @@ pub struct ResolvedConfig {
     /// Comments shorter than this have too little vocabulary to judge.
     pub restate_min_words: usize,
 
+    /// Overlap at which `explains-what-not-why` calls a comment a restatement.
+    /// Lower than `restate_threshold`: the absent rationale marker carries the
+    /// other half of the judgement.
+    pub what_not_why_threshold: f64,
+    /// Prose lines a block needs before `explains-what-not-why` will judge it.
+    pub what_not_why_min_lines: usize,
+    /// Words and phrases that count as giving a reason.
+    pub rationale_markers: Vec<String>,
+
+    /// Restrict `passive-voice` to passives naming their actor.
+    pub passive_requires_agent: bool,
+
+    /// Sentence-length variation below which prose reads as uniform.
+    pub min_variation: f64,
+    /// Sentences needed before a rhythm can be judged.
+    pub min_sentences: usize,
+    /// Em dashes per hundred words that count as a habit.
+    pub max_em_dash_rate: f64,
+    /// Em dashes needed before the rate means anything.
+    pub min_em_dashes: usize,
+
     pub banned_phrases: Vec<crate::rules::Phrase>,
 
     /// Vocabulary for `unapproved-word`. Empty means no vocabulary configured.
@@ -146,6 +167,14 @@ impl Default for ResolvedConfig {
             ratio_min_lines: 3,
             restate_threshold: 0.8,
             restate_min_words: 6,
+            what_not_why_threshold: 0.6,
+            what_not_why_min_lines: 2,
+            rationale_markers: rules::why::rationale_markers(),
+            passive_requires_agent: true,
+            min_variation: 0.30,
+            min_sentences: 5,
+            max_em_dash_rate: 2.0,
+            min_em_dashes: 2,
             banned_phrases: Vec::new(),
             approved_words: Vec::new(),
             approve_code_words: true,
@@ -417,6 +446,14 @@ const TRACKED_KEYS: &[&str] = &[
     "ratio_min_lines",
     "restate_threshold",
     "restate_min_words",
+    "what_not_why_threshold",
+    "what_not_why_min_lines",
+    "rationale_markers",
+    "passive_requires_agent",
+    "min_variation",
+    "min_sentences",
+    "max_em_dash_rate",
+    "min_em_dashes",
     "banned_phrases",
     "approved_words",
     "approve_code_words",
@@ -511,6 +548,32 @@ fn apply(rc: &mut ResolvedConfig, s: &Settings, layer: Layer, prov: &mut Provena
     if let Some(x) = &r.comment_restates_code {
         set!(rc, prov, layer, restate_threshold, x.threshold);
         set!(rc, prov, layer, restate_min_words, x.min_words);
+    }
+    if let Some(x) = &r.explains_what_not_why {
+        set!(rc, prov, layer, what_not_why_threshold, x.threshold);
+        set!(rc, prov, layer, what_not_why_min_lines, x.min_lines);
+        // `markers` replaces outright, `extend` accumulates — the same contract
+        // as banned phrases, so a project adds to the user's list rather than
+        // discarding it.
+        if let Some(m) = &x.markers {
+            rc.rationale_markers = m.clone();
+            prov.set("rationale_markers", layer);
+        }
+        if let Some(e) = &x.extend {
+            rc.rationale_markers.extend(e.iter().cloned());
+            prov.set("rationale_markers", layer);
+        }
+    }
+    if let Some(x) = &r.uniform_sentences {
+        set!(rc, prov, layer, min_variation, x.min_variation);
+        set!(rc, prov, layer, min_sentences, x.min_sentences);
+    }
+    if let Some(x) = &r.em_dash_habit {
+        set!(rc, prov, layer, max_em_dash_rate, x.max_rate);
+        set!(rc, prov, layer, min_em_dashes, x.min_count);
+    }
+    if let Some(x) = &r.passive_voice {
+        set!(rc, prov, layer, passive_requires_agent, x.require_agent);
     }
     if let Some(x) = &r.comment_code_ratio {
         set!(rc, prov, layer, max_ratio, x.max_ratio);

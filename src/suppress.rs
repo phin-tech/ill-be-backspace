@@ -61,8 +61,8 @@ fn parse_line(line: &str, line_index: usize) -> Option<Directive> {
                 .collect()
         })
         .unwrap_or_default();
-    // A reason may be introduced by a dash, em dash or colon; none of those on
-    // their own count as justification.
+    // A dash, em dash or colon may introduce a reason; none of those on their
+    // own count as justification.
     let reason = caps
         .get(3)
         .map(|m| {

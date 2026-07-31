@@ -31,11 +31,28 @@ use suppress::Scope;
 /// ratio is meaningless when there is no code.
 pub fn check_prose(text: &str, cfg: &ResolvedConfig) -> Result<Vec<Violation>, String> {
     let ctx = rules::Context::new(cfg)?;
-    let mut cfg = cfg.clone();
-    cfg.select = [rules::BANNED_PHRASE, rules::BLOCK_TOO_LONG]
+    // The rules that still mean something with no code beneath the words. The
+    // rest are dropped rather than reported as clean.
+    const PROSE_RULES: &[&str] = &[
+        rules::BANNED_PHRASE,
+        rules::BLOCK_TOO_LONG,
+        rules::PASSIVE_VOICE,
+    ];
+    // Rhythm and punctuation habits are properties of a passage, not of a line,
+    // so they are judged once over the whole text rather than per line.
+    const WHOLE_TEXT_RULES: &[&str] = &[rules::UNIFORM_SENTENCES, rules::EM_DASH_HABIT];
+    let whole: Vec<String> = WHOLE_TEXT_RULES
         .iter()
-        .map(|s| s.to_string())
+        .filter(|r| cfg.rule_enabled(r))
+        .map(|r| r.to_string())
         .collect();
+    let selected: Vec<String> = PROSE_RULES
+        .iter()
+        .filter(|r| cfg.rule_enabled(r))
+        .map(|r| r.to_string())
+        .collect();
+    let mut cfg = cfg.clone();
+    cfg.select = selected.into_iter().collect();
     // A block budget over one line would double-report the line budget.
     cfg.max_lines = usize::MAX;
     cfg.max_words = None;
@@ -56,6 +73,22 @@ pub fn check_prose(text: &str, cfg: &ResolvedConfig) -> Result<Vec<Violation>, S
             column: 1,
         };
         out.extend(rules::check_block(&block, &block.text, &cfg, &ctx));
+    }
+
+    if !whole.is_empty() {
+        let lines: Vec<String> = text.lines().map(str::to_string).collect();
+        let block = CommentBlock {
+            start_line: 1,
+            end_line: lines.len().max(1) as u32,
+            text: lines,
+            kind: CommentKind::Line,
+            following_code_lines: 0,
+            following_code: Vec::new(),
+            column: 1,
+        };
+        let mut whole_cfg = cfg.clone();
+        whole_cfg.select = whole.into_iter().collect();
+        out.extend(rules::check_block(&block, &block.text, &whole_cfg, &ctx));
     }
     Ok(out)
 }

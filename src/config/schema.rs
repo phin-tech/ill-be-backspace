@@ -88,6 +88,14 @@ pub struct PathOverride {
 pub struct RulesSection {
     #[serde(rename = "comment-restates-code")]
     pub comment_restates_code: Option<RestateRule>,
+    #[serde(rename = "explains-what-not-why")]
+    pub explains_what_not_why: Option<WhyRule>,
+    #[serde(rename = "passive-voice")]
+    pub passive_voice: Option<PassiveRule>,
+    #[serde(rename = "uniform-sentences")]
+    pub uniform_sentences: Option<RhythmRule>,
+    #[serde(rename = "em-dash-habit")]
+    pub em_dash_habit: Option<EmDashRule>,
     #[serde(rename = "block-too-long")]
     pub block_too_long: Option<LengthRule>,
     #[serde(rename = "comment-code-ratio")]
@@ -127,6 +135,48 @@ pub struct RestateRule {
     pub threshold: Option<f64>,
     /// Comments with fewer content words than this are not judged.
     pub min_words: Option<usize>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WhyRule {
+    /// Overlap at or above this fraction counts as restating the code. Lower
+    /// than `comment-restates-code` uses, because the missing rationale marker
+    /// is carrying half the judgement.
+    pub threshold: Option<f64>,
+    /// Comment blocks with fewer prose lines than this are not judged.
+    pub min_lines: Option<usize>,
+    /// Replaces the built-in rationale markers entirely.
+    pub markers: Option<Vec<String>>,
+    /// Added on top of the built-in markers.
+    pub extend: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RhythmRule {
+    /// Variation below this counts as uniform.
+    pub min_variation: Option<f64>,
+    /// Fewer sentences than this have no rhythm to measure.
+    pub min_sentences: Option<usize>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EmDashRule {
+    /// Em dashes per hundred words that count as a habit.
+    pub max_rate: Option<f64>,
+    /// Below this many, a rate says nothing.
+    pub min_count: Option<usize>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PassiveRule {
+    /// Flag only passives that name their actor (`set by the caller`). Turning
+    /// this off flags every passive construction, which measurement says is
+    /// mostly predicate adjectives.
+    pub require_agent: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

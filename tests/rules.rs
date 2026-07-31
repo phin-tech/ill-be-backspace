@@ -639,6 +639,311 @@ mod comment_restates_code {
     }
 }
 
+mod explains_what_not_why {
+    use super::*;
+
+    /// A comment drawn from the code beneath it, saying nothing about why.
+    const NARRATES: &str = "# set the user name and the user email\n\
+                            # from the user record fields\n\
+                            user_name = record.name\n\
+                            user_email = record.email\n";
+
+    /// The same restatement, with a reason attached.
+    const NARRATES_WITH_REASON: &str = "# set the user name and the user email\n\
+                                        # from the user record; the record must set both\n\
+                                        user_name = record.name\n\
+                                        user_email = record.email\n";
+
+    /// `restate_min_words` is lowered so the examples can stay readable.
+    fn why_only() -> ResolvedConfig {
+        ResolvedConfig {
+            select: ["explains-what-not-why"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            restate_min_words: 2,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn flags_a_restatement_with_no_reason() {
+        assert_eq!(
+            rule_ids(&check(NARRATES, "python", &why_only())),
+            ["explains-what-not-why"]
+        );
+    }
+
+    #[test]
+    fn a_reason_exempts_a_comment_however_much_it_restates() {
+        assert!(check(NARRATES_WITH_REASON, "python", &why_only()).is_empty());
+
+        // The same comment still trips the blunter rule. That difference is the
+        // whole reason this rule exists.
+        let blunt = ResolvedConfig {
+            select: ["comment-restates-code"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            restate_min_words: 2,
+            restate_threshold: 0.6,
+            ..Default::default()
+        };
+        assert_eq!(
+            rule_ids(&check(NARRATES_WITH_REASON, "python", &blunt)),
+            ["comment-restates-code"]
+        );
+    }
+
+    #[test]
+    fn a_marker_is_matched_whole_word() {
+        // `bug` is a marker; `debugger` is not one wearing a disguise.
+        let src = "# update the retry counter\n\
+                   # in the retry debugger\n\
+                   retry_counter += 1\n\
+                   retry_debugger.log()\n";
+        assert_eq!(check(src, "python", &why_only()).len(), 1);
+    }
+
+    #[test]
+    fn one_line_is_not_worth_the_argument() {
+        let src = "# increment the retry counter\nretry_counter += 1\n";
+        assert!(check(src, "python", &why_only()).is_empty());
+    }
+
+    #[test]
+    fn min_lines_is_configurable() {
+        let src = "# increment the retry counter\nretry_counter += 1\n";
+        let cfg = ResolvedConfig {
+            what_not_why_min_lines: 1,
+            ..why_only()
+        };
+        assert_eq!(check(src, "python", &cfg).len(), 1);
+    }
+
+    #[test]
+    fn a_godoc_comment_naming_its_function_is_exempt() {
+        // Go has no syntax for a doc comment, only the convention that it opens
+        // with the declared name. Honouring the convention is not narration.
+        let src = "// NewFromConfig builds a config client from a config file.\n\
+                   // The config client is cached.\n\
+                   func NewFromConfig(config Config) *Client {\n";
+        assert!(check(src, "go", &why_only()).is_empty());
+    }
+
+    #[test]
+    fn prose_that_merely_starts_with_a_code_word_is_not_exempt() {
+        let src = "# retry the request and retry the parse\n\
+                   # then retry the write\n\
+                   retry(request)\n\
+                   retry(parse)\n";
+        assert_eq!(check(src, "python", &why_only()).len(), 1);
+    }
+
+    #[test]
+    fn leaves_a_comment_that_adds_information() {
+        let src = "# Upstream returns 502 on cold start.\n\
+                   # One retry is enough to clear it.\n\
+                   fetch(url, retries=1)\n";
+        assert!(check(src, "python", &why_only()).is_empty());
+    }
+
+    #[test]
+    fn markers_can_be_replaced_and_extended() {
+        // With the built-in list gone, `must` no longer rescues the comment.
+        let bare = ResolvedConfig {
+            rationale_markers: Vec::new(),
+            ..why_only()
+        };
+        assert_eq!(check(NARRATES_WITH_REASON, "python", &bare).len(), 1);
+
+        let extended = ResolvedConfig {
+            rationale_markers: vec!["fields".to_string()],
+            ..why_only()
+        };
+        assert!(check(NARRATES, "python", &extended).is_empty());
+    }
+
+    #[test]
+    fn the_message_names_both_halves() {
+        let v = check(NARRATES, "python", &why_only());
+        assert!(v[0].message.contains('%'), "{}", v[0].message);
+        assert!(v[0].message.contains("no reason"), "{}", v[0].message);
+    }
+
+    #[test]
+    fn is_off_by_default() {
+        let found = check(NARRATES, "python", &ResolvedConfig::default());
+        let ids = rule_ids(&found);
+        assert!(!ids.contains(&"explains-what-not-why"), "{ids:?}");
+    }
+}
+
+mod passive_voice {
+    use super::*;
+
+    fn passive_only() -> ResolvedConfig {
+        ResolvedConfig {
+            select: ["passive-voice"].iter().map(|s| s.to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn flags_a_passive_construction() {
+        let src = "# The value is set by the caller.\nvalue = None\n";
+        assert_eq!(
+            rule_ids(&check(src, "python", &passive_only())),
+            ["passive-voice"]
+        );
+    }
+
+    #[test]
+    fn the_message_quotes_the_phrase() {
+        let src = "# The value is set by the caller.\nvalue = None\n";
+        let v = check(src, "python", &passive_only());
+        assert!(v[0].message.contains("is set"), "{}", v[0].message);
+    }
+
+    #[test]
+    fn leaves_active_voice_alone() {
+        let src = "// The caller sets the value before the first read.\nvar v int\n";
+        assert!(check(src, "go", &passive_only()).is_empty());
+    }
+
+    #[test]
+    fn reports_once_per_block() {
+        let src = "# The value is set by the caller.\n\
+                   # The header is written first.\n\
+                   value = None\n";
+        assert_eq!(check(src, "python", &passive_only()).len(), 1);
+    }
+
+    #[test]
+    fn skips_code_samples() {
+        // A shell transcript is not prose, whatever its verbs look like.
+        let src = "# `adb -s <serial> push <jar>` is run by the harness\nrun()\n";
+        assert!(check(src, "python", &passive_only()).is_empty());
+    }
+
+    #[test]
+    fn is_off_by_default() {
+        let src = "# The value is set by the caller.\nvalue = None\n";
+        let found = check(src, "python", &ResolvedConfig::default());
+        let ids = rule_ids(&found);
+        assert!(!ids.contains(&"passive-voice"), "{ids:?}");
+    }
+}
+
+mod rhythm_rules {
+    use super::*;
+
+    fn only(rule: &str) -> ResolvedConfig {
+        ResolvedConfig {
+            select: [rule.to_string()].into_iter().collect(),
+            ..Default::default()
+        }
+    }
+
+    /// Five sentences, all four or five words long.
+    const FLAT: &str = "# One two three four. Five six seven eight.\n\
+                        # Nine ten more words. Twelve thirteen four teen.\n\
+                        # Sixteen seventeen more here.\n\
+                        x = 1\n";
+
+    #[test]
+    fn flags_prose_with_no_rhythm() {
+        assert_eq!(
+            rule_ids(&check(FLAT, "python", &only("uniform-sentences"))),
+            ["uniform-sentences"]
+        );
+    }
+
+    #[test]
+    fn leaves_prose_that_varies() {
+        let src = "# No. It failed because the upstream server rejected the second\n\
+                   # request after the retry budget ran out and nothing retried it.\n\
+                   # Twice. That was the whole bug, and it took a week to find. Fixed.\n\
+                   x = 1\n";
+        assert!(check(src, "python", &only("uniform-sentences")).is_empty());
+    }
+
+    #[test]
+    fn too_few_sentences_are_not_judged() {
+        let src = "# One two three four. Five six seven eight.\nx = 1\n";
+        assert!(check(src, "python", &only("uniform-sentences")).is_empty());
+    }
+
+    #[test]
+    fn flags_an_em_dash_habit() {
+        let src = "# Retry once \u{2014} the upstream 502s \u{2014} then give up.\nx = 1\n";
+        assert_eq!(
+            rule_ids(&check(src, "python", &only("em-dash-habit"))),
+            ["em-dash-habit"]
+        );
+    }
+
+    #[test]
+    fn one_em_dash_is_not_a_habit() {
+        let src = "# Retry once \u{2014} the upstream 502s on cold start.\nx = 1\n";
+        assert!(check(src, "python", &only("em-dash-habit")).is_empty());
+    }
+
+    #[test]
+    fn a_low_rate_over_long_prose_is_not_a_habit() {
+        let mut src = String::from("# Two dashes \u{2014} spread \u{2014} thin.\n");
+        for i in 0..30 {
+            src.push_str(&format!(
+                "# filler line number {i} with several plain words\n"
+            ));
+        }
+        src.push_str("x = 1\n");
+        assert!(check(&src, "python", &only("em-dash-habit")).is_empty());
+    }
+
+    #[test]
+    fn both_are_off_by_default() {
+        let found = check(FLAT, "python", &ResolvedConfig::default());
+        let ids = rule_ids(&found);
+        assert!(!ids.contains(&"uniform-sentences"), "{ids:?}");
+        assert!(!ids.contains(&"em-dash-habit"), "{ids:?}");
+    }
+}
+
+mod llm_tells {
+    use super::*;
+
+    fn preset() -> ResolvedConfig {
+        ResolvedConfig {
+            select: ["banned-phrase"].iter().map(|s| s.to_string()).collect(),
+            banned_phrases: backspace::rules::llm_tells_preset(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn catches_the_antithesis_construction() {
+        let src = "# It's not just a cache \u{2014} it's a contract.\nx = 1\n";
+        let v = check(src, "python", &preset());
+        assert_eq!(v.len(), 1);
+        // The reader is shown the shape, not the regex that found it.
+        assert!(v[0].message.contains("not just X"), "{}", v[0].message);
+        assert!(!v[0].message.contains(r"\b"), "{}", v[0].message);
+    }
+
+    #[test]
+    fn catches_the_correlative_pair() {
+        let src = "# Not only is it faster but it is smaller.\nx = 1\n";
+        assert_eq!(check(src, "python", &preset()).len(), 1);
+    }
+
+    #[test]
+    fn leaves_a_plain_negation_alone() {
+        let src = "# Retry once; the upstream 502s on cold start.\nx = 1\n";
+        assert!(check(src, "python", &preset()).is_empty());
+    }
+}
+
 mod max_line_words {
     use super::*;
 

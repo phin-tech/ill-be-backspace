@@ -7,7 +7,12 @@
 | `block-too-long` | a comment block exceeds a budget | `max_lines` (5), `max_words` (off), `max_chars` (off), `max_line_words` (off) |
 | `comment-code-ratio` | comment lines / following code lines exceeds a ratio | `max_ratio` (1.5), `ratio_min_lines` (3) |
 | `comment-restates-code` | the comment's words are mostly drawn from the code below it | `threshold` (0.8), `min_words` (6) — **off by default** |
+| `explains-what-not-why` | the comment restates the code *and* names no reason | `threshold` (0.6), `min_lines` (2), `markers`, `extend` — **off by default** |
+| `passive-voice` | a form of `be` plus a past participle | `require_agent` (true) — **off by default** |
+| `uniform-sentences` | sentence lengths vary less than `min_variation` | `min_variation` (0.30), `min_sentences` (5) — **off by default** |
+| `em-dash-habit` | em dashes exceed `max_rate` per hundred words | `max_rate` (2.0), `min_count` (2) — **off by default** |
 | `banned-phrase` | comment text matches a word or regex | `words`, `preset`, `extend`, `patterns` |
+| `unapproved-word` | comment prose uses a word outside an approved vocabulary | `preset` (`plain-code`), `words`, `extend`, `approve_code_words` — **off by default** |
 | `suppression-needs-reason` | a suppression directive has no justification | `require_suppression_reason` (false) |
 
 Docstrings and doc comments (`"""..."""`, `///`, `//!`, `/** */`) are exempt
@@ -77,6 +82,23 @@ ratio_min_lines = 3
 threshold = 0.8                    # vocabulary overlap that counts as restating
 min_words = 6                      # shorter comments are not judged
 
+[rules.explains-what-not-why]      # off unless added to `select`
+threshold = 0.6                    # overlap that counts as restating
+min_lines = 2                      # shorter blocks are not judged
+markers = []                       # replaces the built-in rationale words
+extend = ["invariant"]             # added on top of them
+
+[rules.passive-voice]              # off unless added to `select`
+require_agent = true               # false also flags `is invalidated`, with no actor
+
+[rules.uniform-sentences]          # off unless added to `select`
+min_variation = 0.30               # coefficient of variation of sentence length
+min_sentences = 5                  # fewer has no rhythm to measure
+
+[rules.em-dash-habit]              # off unless added to `select`
+max_rate = 2.0                     # em dashes per hundred words
+min_count = 2                      # below this the rate says nothing
+
 [rules.banned-phrase]
 preset = "llm-tells"               # the only preset; omit for none
 words = ["substrate", "c++"]       # literal, escaped, whole-word, added on top
@@ -118,7 +140,7 @@ backspace [PATHS...] [--max-lines N] [--max-ratio F] [--max-words N] [--max-char
 backspace [PATHS...] --audit        # list comments, never fails
 
 backspace prose [FILE]             # check writing, not source; stdin by default
-       [--max-line-words N] [--json]
+       [--max-line-words N] [--select RULE] [--json]
 
 backspace config show <PATH>
 backspace languages

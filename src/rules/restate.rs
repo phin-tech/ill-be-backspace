@@ -196,6 +196,15 @@ pub fn words_of(text: &str) -> Vec<String> {
     content_words(text)
 }
 
+/// The lines of a comment that are actually prose. Banners and code samples name
+/// the code on purpose, so no rule measuring overlap should judge them.
+pub fn prose_lines(comment: &[String]) -> Vec<&String> {
+    comment
+        .iter()
+        .filter(|l| !is_banner(l) && !is_code_sample(l))
+        .collect()
+}
+
 /// Fraction of the comment's content words that also appear in the code, or
 /// `None` when there is not enough prose to judge.
 pub fn overlap(comment: &[String], code: &[String], min_words: usize) -> Option<f64> {
@@ -203,10 +212,7 @@ pub fn overlap(comment: &[String], code: &[String], min_words: usize) -> Option<
         return None;
     }
     // Judge only the lines that are actually prose.
-    let prose: Vec<&String> = comment
-        .iter()
-        .filter(|l| !is_banner(l) && !is_code_sample(l))
-        .collect();
+    let prose = prose_lines(comment);
     if prose.is_empty() {
         return None;
     }

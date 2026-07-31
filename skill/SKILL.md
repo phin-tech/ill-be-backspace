@@ -70,6 +70,8 @@ Each violation names a rule:
 | `block-too-long` | too many lines, words, or words on one line |
 | `comment-code-ratio` | the comment is longer than the code beneath it |
 | `comment-restates-code` | the comment's words already appear in that code |
+| `explains-what-not-why` | it restates the code and never says why — rewrite it as the reason, or delete it |
+| `passive-voice` | name the actor: `the caller sets the value` |
 | `banned-phrase` | matched a configured word or pattern |
 | `suppression-needs-reason` | an `ignore` directive with no justification |
 

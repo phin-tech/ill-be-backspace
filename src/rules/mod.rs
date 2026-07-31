@@ -1,6 +1,9 @@
 //! The checks applied to each comment block.
 
 pub mod restate;
+pub mod rhythm;
+pub mod voice;
+pub mod why;
 
 use std::path::PathBuf;
 
@@ -13,6 +16,10 @@ pub const BLOCK_TOO_LONG: &str = "block-too-long";
 pub const COMMENT_CODE_RATIO: &str = "comment-code-ratio";
 pub const BANNED_PHRASE: &str = "banned-phrase";
 pub const COMMENT_RESTATES_CODE: &str = "comment-restates-code";
+pub const EXPLAINS_WHAT_NOT_WHY: &str = "explains-what-not-why";
+pub const PASSIVE_VOICE: &str = "passive-voice";
+pub const UNIFORM_SENTENCES: &str = "uniform-sentences";
+pub const EM_DASH_HABIT: &str = "em-dash-habit";
 pub const UNAPPROVED_WORD: &str = "unapproved-word";
 pub const SUPPRESSION_NEEDS_REASON: &str = "suppression-needs-reason";
 
@@ -22,6 +29,10 @@ pub const ALL_RULES: &[&str] = &[
     COMMENT_CODE_RATIO,
     BANNED_PHRASE,
     COMMENT_RESTATES_CODE,
+    EXPLAINS_WHAT_NOT_WHY,
+    PASSIVE_VOICE,
+    UNIFORM_SENTENCES,
+    EM_DASH_HABIT,
     UNAPPROVED_WORD,
     SUPPRESSION_NEEDS_REASON,
 ];
@@ -95,6 +106,15 @@ impl Phrase {
             pattern: p.to_string(),
         }
     }
+
+    /// A regex a reader would not want quoted at them. The finding shows
+    /// `display`; the match is still done by `pattern`.
+    pub fn named(display: &str, pattern: &str) -> Self {
+        Self {
+            display: display.to_string(),
+            pattern: pattern.to_string(),
+        }
+    }
 }
 
 /// Phrases that reliably mark comments written to sound thorough rather than to
@@ -102,6 +122,9 @@ impl Phrase {
 pub fn llm_tells_preset() -> Vec<Phrase> {
     // Word-level entries go through `Phrase::word` so a finding quotes the
     // phrase a reader recognises rather than the regex behind it.
+    //
+    // These date fast. Every model generation has its own favourites, and a word
+    // that marked generated text in 2025 is just a word in 2027. Prune them.
     let words = [
         "Note that",
         "It's worth noting",
@@ -109,14 +132,38 @@ pub fn llm_tells_preset() -> Vec<Phrase> {
         "This is important because",
         "As mentioned above",
         "Keep in mind that",
-        "it does NOT",
+        "delve",
+        "tapestry",
+        "testament to",
+        "navigate the complexities",
+        "In conclusion",
+        "It is important to note",
+        "at the end of the day",
     ];
-    let patterns = [r"Verified \d{4}-\d{2}-\d{2}"];
+
+    // Constructions rather than words, and they have outlasted several model
+    // generations: the antithesis that inflates one claim into two, and the
+    // correlative pair used for the same effect.
+    let patterns = [
+        ("Verified <date>", r"Verified \d{4}-\d{2}-\d{2}"),
+        // The tell is the shouting, not the negation. Case-sensitive, or it
+        // fires on `a project adds to your list, it does not replace it`.
+        ("it does NOT", r"(?-i)\bit does NOT\b"),
+        (
+            "it's not just X — it's Y",
+            r"(?i)\b(?:it'?s|this is|that'?s|they'?re|we'?re)\s+not\s+just\b[^.!?]{0,60}?(?:\u{2014}|--|,\s*it'?s\b|\bbut\b)",
+        ),
+        ("not only X but Y", r"(?i)\bnot only\b[^.!?]{0,60}\bbut\b"),
+        (
+            "it isn't about X, it's about Y",
+            r"(?i)\bis(?:n'?t|\s+not)\s+about\b[^.!?]{0,60}\bit'?s about\b",
+        ),
+    ];
 
     words
         .iter()
         .map(|w| Phrase::word(w))
-        .chain(patterns.iter().map(|p| Phrase::pattern(p)))
+        .chain(patterns.iter().map(|(d, p)| Phrase::named(d, p)))
         .collect()
 }
 
@@ -141,6 +188,9 @@ pub fn compile_phrases(phrases: &[Phrase]) -> Result<Vec<(String, Regex)>, Strin
 
 pub(crate) struct Context {
     pub phrases: Vec<(String, Regex)>,
+    /// Rationale markers, compiled once: word-bounded and case-insensitive, so
+    /// `since` does not match `sincerely`.
+    pub rationale: Vec<Regex>,
     pub approved: std::collections::HashSet<String>,
     /// Identifiers from the whole file, treated as approved vocabulary.
     pub code_vocabulary: std::collections::HashSet<String>,
@@ -148,8 +198,17 @@ pub(crate) struct Context {
 
 impl Context {
     pub fn new(cfg: &ResolvedConfig) -> Result<Self, String> {
+        let markers: Vec<Phrase> = cfg
+            .rationale_markers
+            .iter()
+            .map(|m| Phrase::word(m))
+            .collect();
         Ok(Self {
             phrases: compile_phrases(&cfg.banned_phrases)?,
+            rationale: compile_phrases(&markers)?
+                .into_iter()
+                .map(|(_, re)| re)
+                .collect(),
             approved: cfg
                 .approved_words
                 .iter()
@@ -187,6 +246,18 @@ pub(crate) fn check_block(
     if cfg.rule_enabled(COMMENT_RESTATES_CODE) {
         out.extend(comment_restates_code(block, text, cfg));
     }
+    if cfg.rule_enabled(EXPLAINS_WHAT_NOT_WHY) {
+        out.extend(explains_what_not_why(block, text, cfg, ctx));
+    }
+    if cfg.rule_enabled(PASSIVE_VOICE) {
+        out.extend(passive_voice(block, text, cfg));
+    }
+    if cfg.rule_enabled(UNIFORM_SENTENCES) {
+        out.extend(uniform_sentences(block, text, cfg));
+    }
+    if cfg.rule_enabled(EM_DASH_HABIT) {
+        out.extend(em_dash_habit(block, text, cfg));
+    }
     if cfg.rule_enabled(UNAPPROVED_WORD) {
         out.extend(unapproved_word(block, text, cfg, ctx));
     }
@@ -207,8 +278,8 @@ fn unapproved_word(
 
     let mut allowed = ctx.approved.clone();
     if cfg.approve_code_words {
-        // A project's own terminology is defined by its identifiers, so there is
-        // no reason to make someone restate it in configuration.
+        // A project's identifiers define its own terminology, so there is no
+        // reason to make someone restate it in configuration.
         allowed.extend(restate::words_of(&block.following_code.join(" ")));
         allowed.extend(ctx.code_vocabulary.iter().cloned());
     }
@@ -258,6 +329,138 @@ fn comment_restates_code(
         ),
         "This comment names what the code names. Either delete it, or replace \
          it with the reason the code is written this way."
+            .to_string(),
+    ))
+}
+
+/// Flags a comment that draws its words from the code beneath it *and* gives no
+/// reason for any of it.
+///
+/// Neither half is decisive alone. `comment-restates-code` fires on good "why"
+/// comments because they have to name the things they discuss; a missing
+/// rationale marker means little in a one-line note. The conjunction is what
+/// isolates narration: several lines, mostly the code's own vocabulary, and
+/// nothing that answers "why".
+fn explains_what_not_why(
+    block: &CommentBlock,
+    text: &[String],
+    cfg: &ResolvedConfig,
+    ctx: &Context,
+) -> Option<Violation> {
+    let prose = restate::prose_lines(text);
+    if prose.len() < cfg.what_not_why_min_lines {
+        return None;
+    }
+    // A godoc comment names its function because the convention says it must.
+    if why::opens_with_declared_name(text, &block.following_code) {
+        return None;
+    }
+    let score = restate::overlap(text, &block.following_code, cfg.restate_min_words)?;
+    if score < cfg.what_not_why_threshold {
+        return None;
+    }
+    // Joined rather than checked line by line, so `so\n// that` still reads as
+    // one marker.
+    let joined = prose
+        .iter()
+        .map(|s| s.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if ctx.rationale.iter().any(|re| re.is_match(&joined)) {
+        return None;
+    }
+
+    Some(violation(
+        EXPLAINS_WHAT_NOT_WHY,
+        block,
+        text,
+        cfg,
+        format!(
+            "{} lines drawn {:.0}% from the code below, with no reason given",
+            prose.len(),
+            score * 100.0
+        ),
+        "This says what the code does. Say why it does it — the constraint, the \
+         bug it avoids, what breaks without it. If there is no why, delete it."
+            .to_string(),
+    ))
+}
+
+/// Flags the first passive construction in a comment. One finding per block:
+/// three quotes from the same paragraph is nagging, not information.
+fn passive_voice(block: &CommentBlock, text: &[String], cfg: &ResolvedConfig) -> Option<Violation> {
+    let phrase = restate::prose_lines(text)
+        .into_iter()
+        .find_map(|l| voice::passive_phrase(l, cfg.passive_requires_agent))?;
+
+    Some(violation(
+        PASSIVE_VOICE,
+        block,
+        text,
+        cfg,
+        format!("passive voice: `{phrase}`"),
+        "Passive voice hides who acts. `the caller sets the value` rather than \
+         `the value is set by the caller`."
+            .to_string(),
+    ))
+}
+
+/// Flags prose whose sentences are all the same length.
+///
+/// People write a six-word sentence next to a thirty-word one. Text that never
+/// does is either generated or edited until it reads like it was.
+fn uniform_sentences(
+    block: &CommentBlock,
+    text: &[String],
+    cfg: &ResolvedConfig,
+) -> Option<Violation> {
+    let joined = restate::prose_lines(text)
+        .iter()
+        .map(|s| s.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let (cv, count) = rhythm::variation(&joined, cfg.min_sentences)?;
+    if cv >= cfg.min_variation {
+        return None;
+    }
+
+    Some(violation(
+        UNIFORM_SENTENCES,
+        block,
+        text,
+        cfg,
+        format!(
+            "{count} sentences of near-identical length (variation {cv:.2}, min {:.2})",
+            cfg.min_variation
+        ),
+        "Vary the rhythm. Cut one sentence to four words, let another run long. \
+         Uniform length reads as generated even when it is not."
+            .to_string(),
+    ))
+}
+
+/// Flags a heavy em-dash habit, the punctuation an extra thought gets bolted on
+/// with.
+fn em_dash_habit(block: &CommentBlock, text: &[String], cfg: &ResolvedConfig) -> Option<Violation> {
+    let joined = text.join(" ");
+    let (rate, count) = rhythm::em_dash_rate(&joined);
+    // A rate alone would fire on a four-word line with one dash in it.
+    if count < cfg.min_em_dashes || rate <= cfg.max_em_dash_rate {
+        return None;
+    }
+
+    Some(violation(
+        EM_DASH_HABIT,
+        block,
+        text,
+        cfg,
+        format!(
+            "{count} em dashes in {} words ({rate:.1} per 100, max {:.1})",
+            joined.split_whitespace().count(),
+            cfg.max_em_dash_rate
+        ),
+        "An em dash usually joins two thoughts that wanted to be two sentences. \
+         Use a full stop, or a comma if they belong together."
             .to_string(),
     ))
 }
@@ -440,6 +643,34 @@ pub fn explain(rule: &str) -> Option<&'static str> {
              beneath it. Identifiers are split on case and underscores before \
              comparison. Controlled by `restate_threshold` and \
              `restate_min_words`; off by default."
+        }
+        EXPLAINS_WHAT_NOT_WHY => {
+            "Flags a comment that both restates the code and offers no reason for \
+             it: at least `min_lines` of prose, vocabulary overlap at or above \
+             `threshold`, and none of the rationale markers (`because`, `so \
+             that`, `to avoid`, `otherwise`, …). Narrower than \
+             `comment-restates-code`, because a comment giving a reason is \
+             exempt however much vocabulary it shares. Off by default."
+        }
+        PASSIVE_VOICE => {
+            "Flags a form of `be` followed by a past participle: `the value is \
+             set by the caller`. Naming the actor is usually shorter and always \
+             clearer. Off by default, and deliberately not an error: see the \
+             note in the README about whose writing style rules like this \
+             penalise."
+        }
+        UNIFORM_SENTENCES => {
+            "Flags prose whose sentences are all close to the same length, \
+             measured as the coefficient of variation of their word counts. \
+             Needs at least `min_sentences` (5) to judge a rhythm at all. Most \
+             useful on `backspace prose`, since few comments are that long. Off \
+             by default."
+        }
+        EM_DASH_HABIT => {
+            "Flags more than `max_rate` (2.0) em dashes per hundred words, once \
+             at least `min_count` (2) appear. The em dash is where a second \
+             thought gets bolted onto a first; a habit of it is the most \
+             reliable punctuation tell there is. Off by default."
         }
         UNAPPROVED_WORD => {
             "Flags comment prose using words outside a configured vocabulary. \

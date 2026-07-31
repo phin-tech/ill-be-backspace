@@ -13,6 +13,44 @@ failing a build that passed before.
 
 ### Added
 
+- `explains-what-not-why` rule: flags a comment that both restates the code and
+  gives no reason for it — at least `min_lines` (2) of prose, vocabulary overlap
+  at or above `threshold` (0.6), and none of the built-in rationale markers
+  (`because`, `since`, `so`, `otherwise`, `to avoid`, `must`, `workaround`, …).
+  Extend the markers with `extend`, replace them with `markers`. This is the
+  precise version of `comment-restates-code`: a comment giving a reason is exempt
+  however much vocabulary it shares with the code, which is exactly the case that
+  makes the older rule misfire. Measured across four repositories it reports 6
+  findings where `comment-restates-code` reports 15. Comments opening with the
+  name of the thing declared beneath them are exempt, since godoc requires that
+  and Go has no syntax to mark a doc comment. **Off by default.**
+- `passive-voice` rule: flags a form of `be` followed by a past participle. By
+  default only passives naming their actor (`is set by the caller`), because
+  those are the ones with a shorter active rewrite available; `require_agent =
+  false` flags every passive. The restriction is what makes the rule usable —
+  on a 6,800-file repository it cuts the findings from 3,386 to 361, and the
+  difference was almost entirely predicate adjectives (`is unchanged`, `is
+  needed`) that no rewrite improves. Works on comments and on `backspace prose`.
+  **Off by default, and documented as a suggestion rather than a gate**: style
+  rules of this kind systematically penalise people writing in a second
+  language.
+- `uniform-sentences` rule: flags prose whose sentences are all close to the
+  same length, measured as the coefficient of variation of their word counts.
+  Needs `min_sentences` (5) to judge a rhythm. Calibrated against this repo's own
+  hand-written documents, which score 0.36 to 0.74 against a 0.30 default. It
+  catches *unedited* generated text: `docs/harper-integration.md` was written by
+  a model, revised, and scores 0.63. **Off by default.**
+- `em-dash-habit` rule: flags more than `max_rate` (2.0) em dashes per hundred
+  words once `min_count` (2) appear. The same documents peak at 1.3. **Off by
+  default.**
+- `llm-tells` gains the antithesis constructions — `it's not just X — it's Y`,
+  `not only X but Y`, `it isn't about X, it's about Y` — and the current crop of
+  vocabulary tics (`delve`, `tapestry`, `testament to`, `In conclusion`). The
+  word half of the preset dates fast and is meant to be pruned; the shapes have
+  outlasted several model generations. Regex entries can now carry a readable
+  name, so a finding quotes `it's not just X — it's Y` rather than the pattern.
+- `backspace prose --select`: restricts prose mode to named rules, so
+  `--select passive-voice` checks voice without also applying the word list.
 - `backspace prose`: checks plain writing rather than source, reading a file or
   stdin, using the same word list that governs comments. Only the rules that
   make sense without code are applied.
@@ -24,6 +62,9 @@ failing a build that passed before.
 
 ### Changed
 
+- `backspace prose` now honours `select` rather than always applying
+  `banned-phrase` and `block-too-long`. A project that selects neither gets
+  neither; a configured word list still enables `banned-phrase` on its own.
 - The `banned-phrase` message reads "matches banned phrase" rather than "comment
   matches banned phrase", since it now applies to prose as well as comments.
 - `llm-tells` findings quote the phrase a reader recognises rather than the

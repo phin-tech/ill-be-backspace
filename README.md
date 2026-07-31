@@ -100,14 +100,22 @@ $ backspace --stats               # who's the worst offender?
 Exit codes are `0` clean, `1` violations, `2` you've configured something
 strange. Your CI will know exactly what to do.
 
-## Four Rules. That's All It Takes.
+## Two Rules Are On. The Rest Are Yours To Turn On.
 
-| Rule | What it catches |
-|---|---|
-| `block-too-long` | More than `max_lines` (5) consecutive lines of comment. |
-| `comment-code-ratio` | A comment longer than the code beneath it. **This is the one that finds the real offenders.** |
-| `comment-restates-code` | A comment that only says what the code already says. **Opt-in** — see below. |
-| `banned-phrase` | Words and regexes you pick — see below. There's an `llm-tells` preset for `Verified 2026-…`, `Note that`, `it does NOT`, and friends. Opt-in — we're not here to preach. |
+| Rule | What it catches | |
+|---|---|---|
+| `block-too-long` | More than `max_lines` (5) consecutive lines of comment. | on |
+| `comment-code-ratio` | A comment longer than the code beneath it. **This is the one that finds the real offenders.** | on |
+| `comment-restates-code` | A comment that only says what the code already says. | opt-in |
+| `explains-what-not-why` | A comment that restates the code *and* never says why. The sharper version of the rule above — see below. | opt-in |
+| `passive-voice` | `the value is set by the caller`, where naming the actor is shorter. | opt-in |
+| `uniform-sentences` | Prose where every sentence is the same length. | opt-in |
+| `em-dash-habit` | Em dashes past a rate you set. | opt-in |
+| `banned-phrase` | Words and regexes you pick. There's an `llm-tells` preset for `Verified 2026-…`, `Note that`, `it's not just X — it's Y`, and friends. | opt-in |
+| `unapproved-word` | Prose outside a vocabulary you approve. Rough edges — see the changelog. | opt-in |
+
+Everything opt-in stays off until you name it in `select`. We're not here to
+preach.
 
 `backspace explain <rule>` if you want the long version.
 
@@ -205,6 +213,117 @@ about, so it picks up overlap honestly. Tuned against ~7,400 real files it
 fires about fifteen times, and a couple of those are arguable. It's a sharp
 tool with a real false-positive rate, not a safe default — which is why you
 have to ask for it.
+
+## Why, Not What
+
+That false-positive rate has one cause: naming the code is not the crime.
+Narrating it without ever saying *why* is. So ask both questions at once:
+
+```toml
+select = ["block-too-long", "comment-code-ratio", "explains-what-not-why"]
+
+[rules.explains-what-not-why]
+threshold = 0.6      # lower than the rule above — the missing reason carries half the weight
+min_lines = 2        # one line is rarely worth the argument
+```
+
+`explains-what-not-why` fires only when a comment is **all three**: at least two
+lines, mostly the code's own vocabulary, and carrying none of `because`, `since`,
+`so`, `otherwise`, `to avoid`, `must`, `workaround`, `upstream` — the words a
+reason is made of. Say why, in any of the ways people actually say it, and the
+rule leaves you alone no matter how much vocabulary you share with the code.
+
+That conjunction is the whole point. On the same repositories where
+`comment-restates-code` finds seven, this finds three — and it drops the good
+"why" comments that were the other rule's false positives.
+
+Add your own reason-words with `extend = ["rationale", "invariant"]`, or replace
+the list outright with `markers = [...]`.
+
+## Say Who Does It
+
+```toml
+select = ["passive-voice"]
+```
+
+```console
+$ backspace src/
+src/session.rs:88:5: error: passive-voice: passive voice: `is set by the caller`
+      = help: Passive voice hides who acts. `the caller sets the value` rather
+             than `the value is set by the caller`.
+```
+
+By default it only flags passives that **name their actor**, because those are
+the ones with a guaranteed shorter rewrite sitting right there. `the cache is
+invalidated here` is left alone: there is nobody to promote to the front of the
+sentence. Measured on a 6,800-file repo, that restriction takes the rule from
+3,386 findings to 361 — the rest were predicate adjectives like `is unchanged`
+and `is needed`, which no rewrite improves. If you want the strict version:
+
+```toml
+[rules.passive-voice]
+require_agent = false
+```
+
+It works on plain writing too: `backspace prose --select passive-voice`.
+
+**One caution, and we mean it.** Style rules like this systematically penalise
+people writing in a second language, who often write more formally and more
+completely than native speakers do. Simplified Technical English was designed to
+*help* that group read; enforcing its style on that same group's writing inverts
+the intent. So this ships off, it ships without an `error` default in any config
+we hand you, and it is a suggestion in a review — not a gate in your CI.
+
+## The Machine Wrote This
+
+Three tells, in descending order of how long they'll stay true.
+
+**Punctuation.** Generated prose bolts a second thought onto a first with an em
+dash, over and over:
+
+```toml
+select = ["em-dash-habit"]
+
+[rules.em-dash-habit]
+max_rate = 2.0       # per hundred words
+min_count = 2        # one dash is a sentence that needed it
+```
+
+Two per hundred words is not a number we made up either. Across this repo's own
+README, changelog and design notes — all hand-written, all fond of the em dash —
+the highest rate is 1.3.
+
+**Rhythm.** People write a four-word sentence next to a thirty-word one.
+Generated text regresses to the mean and keeps every sentence the same size.
+`uniform-sentences` measures the coefficient of variation of sentence length:
+
+```toml
+[rules.uniform-sentences]
+min_variation = 0.30
+min_sentences = 5    # fewer than five has no rhythm to measure
+```
+
+Same documents score 0.36 to 0.74, so 0.30 has real headroom. **An honest
+caveat:** this catches unedited generated text, not edited generated text. The
+design note in `docs/harper-integration.md` was written by a model and scores
+0.63 — squarely human-looking — because it was revised. Treat a finding as
+information, never as proof.
+
+**Vocabulary and shape.** The `llm-tells` preset carries both, and the
+difference matters:
+
+| kind | examples | shelf life |
+|---|---|---|
+| words | `delve`, `tapestry`, `testament to`, `In conclusion` | short — every model generation has new favourites |
+| shapes | `it's not just X — it's Y`, `not only X but Y`, `it isn't about X, it's about Y` | long — the antithesis construction has outlasted several |
+
+Prune the word half as it dates. The shape half is the part worth keeping.
+
+All three work on writing as well as on code:
+
+```console
+$ backspace prose draft.md --select em-dash-habit
+```
 
 ## Ban Your Own Words
 
