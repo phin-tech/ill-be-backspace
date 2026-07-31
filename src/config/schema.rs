@@ -186,11 +186,30 @@ pub struct RatioRule {
     pub ratio_min_lines: Option<usize>,
 }
 
+/// One preset name or several. `preset = "llm-tells"` and
+/// `preset = ["llm-tells", "agent-tics"]` are both valid, so a project can take
+/// two bundles without either one replacing the other.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum Presets {
+    One(String),
+    Many(Vec<String>),
+}
+
+impl Presets {
+    pub fn names(&self) -> Vec<&str> {
+        match self {
+            Presets::One(s) => vec![s.as_str()],
+            Presets::Many(v) => v.iter().map(String::as_str).collect(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PhraseRule {
-    /// A named bundle, currently only `llm-tells`.
-    pub preset: Option<String>,
+    /// Named bundles: `llm-tells`, `agent-tics`.
+    pub preset: Option<Presets>,
     /// Replaces the preset entirely.
     pub patterns: Option<Vec<String>>,
     /// Regexes added on top of whatever the preset or `patterns` produced.

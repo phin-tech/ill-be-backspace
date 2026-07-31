@@ -37,8 +37,9 @@ pub enum Command {
     /// Check prose rather than source: reads a file or stdin and applies the
     /// word list to plain writing. Same list that governs comments.
     Prose {
-        /// File to read. Omit to read stdin.
-        file: Option<PathBuf>,
+        /// Files or directories to read. A directory is walked for prose
+        /// extensions. Omit to read stdin.
+        paths: Vec<PathBuf>,
         /// Maximum words on a single line.
         #[arg(long)]
         max_line_words: Option<usize>,

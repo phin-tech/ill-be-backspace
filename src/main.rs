@@ -170,44 +170,54 @@ fn subcommand(command: &Command, cli: &Cli) -> Result<u8> {
             }
         },
         Command::Prose {
-            file,
+            paths,
             max_line_words,
             select,
             json,
         } => {
-            let text = match file {
-                Some(p) => std::fs::read_to_string(p)
-                    .with_context(|| format!("failed to read {}", p.display()))?,
-                None => {
-                    let mut buf = String::new();
-                    std::io::Read::read_to_string(&mut std::io::stdin(), &mut buf)?;
-                    buf
-                }
-            };
-
             Config::validate_rule_ids(select)?;
             let mut config = load_config(cli)?;
             config.cli.max_line_words = *max_line_words;
             config.cli.select = select.clone();
-            let name = file
-                .as_deref()
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|| "<stdin>".to_string());
-            let cfg = config.resolve(Path::new(&name), "prose");
 
-            let violations = backspace::check_prose(&text, &cfg).map_err(anyhow::Error::msg)?;
+            // Each source is (display name, text). Stdin keeps its `<stdin>`
+            // name so a piped draft reports the same way it always did.
+            let sources: Vec<(String, String)> = if paths.is_empty() {
+                let mut buf = String::new();
+                std::io::Read::read_to_string(&mut std::io::stdin(), &mut buf)?;
+                vec![("<stdin>".to_string(), buf)]
+            } else {
+                for p in paths {
+                    if !p.exists() {
+                        anyhow::bail!("{} does not exist", p.display());
+                    }
+                }
+                runner::collect_files(paths, &config)
+                    .into_iter()
+                    .filter(|p| runner::is_prose_file(p) || paths.contains(p))
+                    .map(|p| {
+                        let text = std::fs::read_to_string(&p)
+                            .with_context(|| format!("failed to read {}", p.display()))?;
+                        Ok((p.display().to_string(), text))
+                    })
+                    .collect::<Result<Vec<_>>>()?
+            };
+
             let mut report = runner::Report {
-                files_checked: 1,
+                files_checked: sources.len(),
                 ..Default::default()
             };
-            report.violations = violations
-                .into_iter()
-                .map(|mut v| {
-                    v.path = PathBuf::from(&name);
-                    v.language = "prose".to_string();
-                    v
-                })
-                .collect();
+            for (name, text) in &sources {
+                let cfg = config.resolve(Path::new(name), "prose");
+                let violations = backspace::check_prose(text, &cfg).map_err(anyhow::Error::msg)?;
+                report
+                    .violations
+                    .extend(violations.into_iter().map(|mut v| {
+                        v.path = PathBuf::from(name);
+                        v.language = "prose".to_string();
+                        v
+                    }));
+            }
 
             let mut out = anstream::stdout().lock();
             let format = if *json {

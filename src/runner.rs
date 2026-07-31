@@ -74,6 +74,17 @@ impl Report {
     }
 }
 
+/// Extensions `backspace prose` walks a directory for. Named explicitly rather
+/// than "everything that is not source", so pointing it at a repository root
+/// reviews the documentation instead of the lockfiles.
+pub const PROSE_EXTENSIONS: &[&str] = &["md", "markdown", "txt", "rst", "adoc"];
+
+pub fn is_prose_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| PROSE_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
+}
+
 /// Expands the given paths into concrete files, honouring gitignore and the
 /// configured excludes.
 pub fn collect_files(paths: &[PathBuf], config: &Config) -> Vec<PathBuf> {

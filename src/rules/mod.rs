@@ -75,6 +75,17 @@ pub struct Violation {
 pub struct Phrase {
     pub display: String,
     pub pattern: String,
+    /// The plain word to use instead, when there is one. A finding that can name
+    /// the replacement is a finding the reader can act on without thinking.
+    pub suggest: Option<String>,
+    /// Words that make this match legitimate when they follow it.
+    ///
+    /// Some words are only a tic outside a fixed idiom. `pathological case` is
+    /// standard, `pathological span` is the idiom stretched over any noun to
+    /// hand — measured against Emacs, all ten human uses are the idiom and none
+    /// are the stretch. Rust's `regex` has no lookaround, so the exception
+    /// cannot live in the pattern; the rule reads the following word instead.
+    pub except_before: Vec<String>,
 }
 
 impl Phrase {
@@ -96,6 +107,8 @@ impl Phrase {
                 regex::escape(w),
                 if trail { r"\b" } else { "" },
             ),
+            suggest: None,
+            except_before: Vec::new(),
         }
     }
 
@@ -104,6 +117,8 @@ impl Phrase {
         Self {
             display: p.to_string(),
             pattern: p.to_string(),
+            suggest: None,
+            except_before: Vec::new(),
         }
     }
 
@@ -113,18 +128,60 @@ impl Phrase {
         Self {
             display: display.to_string(),
             pattern: pattern.to_string(),
+            suggest: None,
+            except_before: Vec::new(),
+        }
+    }
+
+    /// A word with the plain one to use instead: `utilize` → `use`.
+    pub fn replacing(w: &str, plain: &str) -> Self {
+        Self {
+            suggest: Some(plain.to_string()),
+            ..Phrase::word(w)
+        }
+    }
+
+    /// A word that is only a tic outside a fixed idiom: `pathological` is fine
+    /// before `case`, and a stretch before anything else.
+    pub fn word_unless_followed_by(w: &str, allowed: &[&str]) -> Self {
+        Self {
+            except_before: allowed.iter().map(|s| s.to_string()).collect(),
+            ..Phrase::word(w)
         }
     }
 }
 
-/// Phrases that reliably mark comments written to sound thorough rather than to
-/// inform. Opt-in: enabling this by default would make the tool preachy.
+/// Phrases that mark comments written to sound thorough rather than to inform.
+///
+/// **This preset finds narration, not authorship, and the measurement is
+/// unambiguous about it.** Per 100,000 comment words, across 4.3M words of
+/// Neovim, Emacs and WordPress against 586k words of agent-written code:
+///
+/// | phrase | human | agent |
+/// |---|---|---|
+/// | `Note that` | 26.14 | 0.51 |
+/// | `In other words` | 1.05 | 0.00 |
+/// | `not only X but Y` | 0.68 | 0.00 |
+/// | `Keep in mind that` | 0.40 | 0.00 |
+/// | `delve` | 0.05 | 0.00 |
+///
+/// Every one of them points the wrong way. `Note that` — the entry that
+/// produces more findings than the rest of the preset combined — appears fifty
+/// times more often in human code. The folklore words are folklore: `delve` and
+/// `In conclusion` did not appear in the agent corpus at all.
+///
+/// So keep this preset for what it does do — flagging phrasing that pads a
+/// comment without adding to it, which is a real thing to want whoever wrote it
+/// — and do not read a finding as evidence of a machine. For that, see
+/// [`agent_tics_preset`], whose entries were chosen because they measured the
+/// other way round.
+///
+/// One caveat on the numbers: the agent corpus is seven times smaller, so a
+/// phrase with one or two human hits proves nothing. `Note that`, with over a
+/// thousand expected occurrences under the null, is not in that category.
 pub fn llm_tells_preset() -> Vec<Phrase> {
     // Word-level entries go through `Phrase::word` so a finding quotes the
     // phrase a reader recognises rather than the regex behind it.
-    //
-    // These date fast. Every model generation has its own favourites, and a word
-    // that marked generated text in 2025 is just a word in 2027. Prune them.
     let words = [
         "Note that",
         "It's worth noting",
@@ -167,10 +224,165 @@ pub fn llm_tells_preset() -> Vec<Phrase> {
         .collect()
 }
 
+/// Long words with short ones that mean the same thing.
+///
+/// Every pair here is a straight substitution: the plain word carries the whole
+/// meaning of the fancy one in the register comments are written in. Words with
+/// a real distinction stay out — `terminate` is not `end` when you are talking
+/// about signals, and `abort` is not `stop` in a transaction.
+pub fn plain_words_preset() -> Vec<Phrase> {
+    let pairs = [
+        ("utilize", "use"),
+        ("utilise", "use"),
+        ("leverage", "use"),
+        ("facilitate", "help"),
+        ("commence", "start"),
+        ("initiate", "start"),
+        ("endeavor", "try"),
+        ("endeavour", "try"),
+        ("ascertain", "find out"),
+        ("demonstrate", "show"),
+        ("sufficient", "enough"),
+        ("additional", "more"),
+        ("numerous", "many"),
+        ("methodology", "method"),
+        ("functionality", "features"),
+        ("approximately", "about"),
+        ("subsequently", "later"),
+        ("prior to", "before"),
+        ("subsequent to", "after"),
+        ("in the event that", "if"),
+        ("in order to", "to"),
+        ("due to the fact that", "because"),
+        ("at this point in time", "now"),
+        ("has the ability to", "can"),
+        ("is able to", "can"),
+        ("a large number of", "many"),
+        ("in the vicinity of", "near"),
+        ("with regard to", "about"),
+        ("in an effort to", "to"),
+    ];
+    pairs
+        .iter()
+        .map(|(long, plain)| Phrase::replacing(long, plain))
+        .collect()
+}
+
+/// The bundles `[rules.banned-phrase] preset` accepts.
+pub const PHRASE_PRESETS: &[&str] = &["llm-tells", "agent-tics", "plain-words"];
+
+/// The phrases of a named preset; empty for a name that does not exist, which
+/// configuration validation rejects before it gets here.
+pub fn preset_named(name: &str) -> Vec<Phrase> {
+    match name {
+        "llm-tells" => llm_tells_preset(),
+        "agent-tics" => agent_tics_preset(),
+        "plain-words" => plain_words_preset(),
+        _ => Vec::new(),
+    }
+}
+
+/// Phrasing that marks an assistant talking about its own work rather than
+/// documenting anything: the reflexive agreement, the self-congratulation, the
+/// metaphors that arrive in place of a measurement.
+///
+/// Aimed at `backspace prose` and the chat hook more than at comments.
+///
+/// Unlike [`llm_tells_preset`], every entry here earned its place against a
+/// control corpus. Rates per 100,000 comment words, 4.3M words of Neovim, Emacs
+/// and WordPress against 586k words of agent-written code:
+///
+/// | word | human | agent | |
+/// |---|---|---|---|
+/// | `load-bearing` | 0.00 | 6.14 | agent only |
+/// | `pathological` (outside its idiom) | 0.12 | 2.22 | 19x |
+/// | `inert` | 0.35 | 4.95 | 14x |
+/// | `stomping` | 0.07 | 0.51 | 7x |
+///
+/// What separates these from the folklore words is that they are metaphors
+/// standing in for a specific statement, and the specific statement is what a
+/// comment is for.
+///
+/// Counting alone could not have settled any of it. The agent corpus is
+/// agent-written throughout, so a high count there is as likely to be the tic
+/// repeating as the word being ordinary — `load-bearing` appears 36 times and
+/// every one is the same move. Only the human control makes the count mean
+/// something.
+///
+/// `pathological` and `inert` are the close calls. `pathological input` is a
+/// fixed idiom from the algorithms literature and legitimate; `pathological
+/// caller`, `pathological span`, `pathological scoped history` are the idiom
+/// stretched over any noun to hand, and they outnumber it four to two. The
+/// exception cannot be expressed as a pattern — Rust's `regex` has no
+/// lookaround, so `pathological` cannot be matched only when `input` does not
+/// follow — so this is all or nothing, and it is in. Drop it with
+/// `ignore = [...]` if your domain uses the idiom often.
+///
+/// Two words the control corpus removed. `gate` is `is gated on`, `auth gate`,
+/// `visibility gate` — a conditional guard, a thing rather than a metaphor.
+/// `headline` appears 249 times in Emacs, because it is org-mode's word for a
+/// heading. Domain vocabulary always beats a tic list, and no amount of
+/// agent-corpus counting would have shown either of them.
+pub fn agent_tics_preset() -> Vec<Phrase> {
+    let words = [
+        // Reflexive agreement. None of these ever document anything.
+        "You're right",
+        "You are right",
+        "You're absolutely right",
+        "You're right to call that out",
+        "Good catch",
+        "Great question",
+        "I need to own this",
+        "let me be honest",
+        // Claiming a state of understanding rather than stating what is known.
+        "complete picture",
+        "clear picture",
+        "honest caveat",
+        // Metaphor standing in for a measurement.
+        "the crux",
+        "load-bearing",
+        "inert",
+        "belt and suspenders",
+        "spine",
+        "lever",
+        "soak",
+        "stomping",
+    ];
+
+    // Only a tic outside its idiom. Emacs uses `pathological` ten times and
+    // every one is `case`, `cases`, `situations` or `behavior`; the agent-written
+    // corpus stretches it over `caller`, `span` and `scoped history`.
+    let idiomatic = [(
+        "pathological",
+        &[
+            "case",
+            "cases",
+            "behavior",
+            "behaviour",
+            "situation",
+            "situations",
+            "input",
+            "inputs",
+            "example",
+            "examples",
+        ][..],
+    )];
+
+    words
+        .iter()
+        .map(|w| Phrase::word(w))
+        .chain(
+            idiomatic
+                .iter()
+                .map(|(w, allowed)| Phrase::word_unless_followed_by(w, allowed)),
+        )
+        .collect()
+}
+
 /// Compiles phrase patterns, defaulting to case-insensitive unless the pattern
 /// sets its own flags. An invalid pattern is a config error, not something to
 /// silently drop.
-pub fn compile_phrases(phrases: &[Phrase]) -> Result<Vec<(String, Regex)>, String> {
+pub fn compile_phrases(phrases: &[Phrase]) -> Result<Vec<(Phrase, Regex)>, String> {
     phrases
         .iter()
         .map(|p| {
@@ -180,14 +392,14 @@ pub fn compile_phrases(phrases: &[Phrase]) -> Result<Vec<(String, Regex)>, Strin
                 format!("(?i){}", p.pattern)
             };
             Regex::new(&source)
-                .map(|re| (p.display.clone(), re))
+                .map(|re| (p.clone(), re))
                 .map_err(|e| format!("invalid banned-phrase pattern `{}`: {e}", p.display))
         })
         .collect()
 }
 
 pub(crate) struct Context {
-    pub phrases: Vec<(String, Regex)>,
+    pub phrases: Vec<(Phrase, Regex)>,
     /// Rationale markers, compiled once: word-bounded and case-insensitive, so
     /// `since` does not match `sincerely`.
     pub rationale: Vec<Regex>,
@@ -589,20 +801,46 @@ fn banned_phrase(
     let joined = text.join("\n");
     ctx.phrases
         .iter()
-        .filter(|(_, re)| re.is_match(&joined))
-        .map(|(pattern, _)| {
+        .filter(|(p, re)| matches_outside_its_idiom(p, re, &joined))
+        .map(|(phrase, _)| {
+            let help = match &phrase.suggest {
+                Some(plain) => format!(
+                    "Write `{plain}`. The shorter word is not a lesser one, and \
+                     every reader knows it."
+                ),
+                None => "This phrasing usually introduces narration rather than \
+                         information. Delete it or state the fact directly."
+                    .to_string(),
+            };
             violation(
                 BANNED_PHRASE,
                 block,
                 text,
                 cfg,
-                format!("matches banned phrase `{pattern}`"),
-                "This phrasing usually introduces narration rather than \
-                 information. Delete it or state the fact directly."
-                    .to_string(),
+                format!("matches banned phrase `{}`", phrase.display),
+                help,
             )
         })
         .collect()
+}
+
+/// Whether the phrase appears somewhere its `except_before` list does not
+/// excuse. A phrase with no exceptions is just a match.
+fn matches_outside_its_idiom(phrase: &Phrase, re: &Regex, text: &str) -> bool {
+    if phrase.except_before.is_empty() {
+        return re.is_match(text);
+    }
+    re.find_iter(text).any(|m| {
+        let next = text[m.end()..]
+            .split_whitespace()
+            .next()
+            .map(|w| {
+                w.trim_matches(|c: char| !c.is_alphanumeric())
+                    .to_lowercase()
+            })
+            .unwrap_or_default();
+        !phrase.except_before.contains(&next)
+    })
 }
 
 pub(crate) fn suppression_needs_reason(

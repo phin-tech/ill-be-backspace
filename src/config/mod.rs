@@ -333,9 +333,12 @@ impl Config {
                 }
             }
             if let Some(p) = s.rules.as_ref().and_then(|r| r.banned_phrase.as_ref()) {
-                if let Some(preset) = &p.preset {
-                    if preset != "llm-tells" {
-                        bail!("unknown banned-phrase preset `{preset}` (known: llm-tells)");
+                for name in p.preset.iter().flat_map(|p| p.names()) {
+                    if !rules::PHRASE_PRESETS.contains(&name) {
+                        bail!(
+                            "unknown banned-phrase preset `{name}` (known: {})",
+                            rules::PHRASE_PRESETS.join(", ")
+                        );
                     }
                 }
                 let all: Vec<rules::Phrase> = p
@@ -585,7 +588,11 @@ fn apply(rc: &mut ResolvedConfig, s: &Settings, layer: Layer, prov: &mut Provena
         // project adds to the user's word list rather than discarding it.
         let mut phrases = match (&p.patterns, &p.preset) {
             (Some(pats), _) => pats.iter().map(|s| rules::Phrase::pattern(s)).collect(),
-            (None, Some(_)) => rules::llm_tells_preset(),
+            (None, Some(names)) => names
+                .names()
+                .into_iter()
+                .flat_map(rules::preset_named)
+                .collect(),
             (None, None) => rc.banned_phrases.clone(),
         };
         if let Some(extra) = &p.extend {

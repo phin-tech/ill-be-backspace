@@ -944,6 +944,66 @@ mod llm_tells {
     }
 }
 
+mod presets {
+    use super::*;
+
+    fn with(phrases: Vec<Phrase>) -> ResolvedConfig {
+        ResolvedConfig {
+            select: ["banned-phrase"].iter().map(|s| s.to_string()).collect(),
+            banned_phrases: phrases,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn an_idiom_is_left_alone_but_the_stretch_is_not() {
+        let cfg = with(backspace::rules::agent_tics_preset());
+        // Emacs writes this; every human use measured was the idiom.
+        assert!(check(
+            "# Guards a pathological case here.\nx = 1\n",
+            "python",
+            &cfg
+        )
+        .is_empty());
+        // The agent corpus stretches it over any noun to hand.
+        assert_eq!(
+            check(
+                "# Guards a pathological caller here.\nx = 1\n",
+                "python",
+                &cfg
+            )
+            .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn the_exception_only_excuses_the_use_that_earned_it() {
+        // One idiomatic use must not excuse a stretch elsewhere in the block.
+        let cfg = with(backspace::rules::agent_tics_preset());
+        let src = "# A pathological case, and a pathological span.\nx = 1\n";
+        assert_eq!(check(src, "python", &cfg).len(), 1);
+    }
+
+    #[test]
+    fn a_plain_word_is_named_in_the_help() {
+        let cfg = with(backspace::rules::plain_words_preset());
+        let v = check("# We utilize a cache here.\nx = 1\n", "python", &cfg);
+        assert_eq!(v.len(), 1);
+        assert!(v[0].help.contains("`use`"), "{}", v[0].help);
+    }
+
+    #[test]
+    fn presets_are_all_reachable_by_name() {
+        for name in backspace::rules::PHRASE_PRESETS {
+            assert!(
+                !backspace::rules::preset_named(name).is_empty(),
+                "{name} resolved to nothing"
+            );
+        }
+    }
+}
+
 mod max_line_words {
     use super::*;
 
