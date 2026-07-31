@@ -101,4 +101,13 @@ These are literal words, escaped and whole-word matched. A project's own list
 adds to them rather than replacing them, so a personal list survives across
 repos.
 
+The same list applies to plain writing, not just comments:
+
+```bash
+echo "some text" | backspace prose
+```
+
+If the user has banned a word, avoid it in your replies to them as well as in
+the code you write.
+
 Full configuration schema and rule list: see `reference.md` in this skill.

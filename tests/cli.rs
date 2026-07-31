@@ -507,3 +507,110 @@ mod line_word_budget {
             .code(1);
     }
 }
+
+mod prose_mode {
+    use super::*;
+    use std::io::Write as _;
+    use std::process::Stdio;
+
+    /// Runs `backspace prose` with `text` on stdin, from a project directory.
+    fn prose(dir: &Path, text: &str, args: &[&str]) -> (String, Option<i32>) {
+        let mut child = Command::cargo_bin("backspace")
+            .unwrap()
+            .current_dir(dir)
+            .arg("prose")
+            .args(args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(text.as_bytes())
+            .unwrap();
+        let out = child.wait_with_output().unwrap();
+        (
+            String::from_utf8_lossy(&out.stdout).into_owned(),
+            out.status.code(),
+        )
+    }
+
+    fn with_words(words: &str) -> TempDir {
+        project(&[(
+            ".backspace.toml",
+            &format!("[rules.banned-phrase]\nwords = [{words}]\n"),
+        )])
+    }
+
+    #[test]
+    fn flags_a_banned_word_in_prose() {
+        let dir = with_words("\"substrate\"");
+        let (out, code) = prose(dir.path(), "We should build on the substrate layer.\n", &[]);
+        assert_eq!(code, Some(1));
+        assert!(out.contains("substrate"), "{out}");
+    }
+
+    #[test]
+    fn clean_prose_exits_zero() {
+        let dir = with_words("\"substrate\"");
+        let (_, code) = prose(dir.path(), "This looks fine to me.\n", &[]);
+        assert_eq!(code, Some(0));
+    }
+
+    #[test]
+    fn reports_the_line_the_word_appeared_on() {
+        let dir = with_words("\"substrate\"");
+        let (out, _) = prose(
+            dir.path(),
+            "first line is clean\nsecond line mentions substrate\n",
+            &[],
+        );
+        assert!(out.contains(":2"), "should point at line 2:\n{out}");
+    }
+
+    #[test]
+    fn uses_the_same_word_list_as_comment_checks() {
+        // The point of prose mode: one list governs code and writing alike.
+        let dir = with_words("\"delve into\", \"leverage\"");
+        let (out, code) = prose(dir.path(), "Let us delve into the options.\n", &[]);
+        assert_eq!(code, Some(1));
+        assert!(out.contains("delve into"), "{out}");
+    }
+
+    #[test]
+    fn json_output_is_machine_readable() {
+        let dir = with_words("\"substrate\"");
+        let (out, _) = prose(dir.path(), "the substrate again\n", &["--json"]);
+        let v: serde_json::Value = serde_json::from_str(&out).expect("valid JSON");
+        assert_eq!(v["summary"]["violations"], 1);
+        assert_eq!(v["violations"][0]["rule"], "banned-phrase");
+        assert_eq!(v["violations"][0]["start_line"], 1);
+    }
+
+    #[test]
+    fn max_line_words_applies_to_prose() {
+        let dir = project(&[(".backspace.toml", "max_lines = 5\n")]);
+        let long = "one two three four five six seven eight nine ten eleven twelve thirteen\n";
+        let (_, clean) = prose(dir.path(), long, &[]);
+        assert_eq!(clean, Some(0), "no budget set, so nothing to flag");
+        let (out, code) = prose(dir.path(), long, &["--max-line-words", "12"]);
+        assert_eq!(code, Some(1), "{out}");
+    }
+
+    #[test]
+    fn the_ratio_rule_does_not_fire_on_prose() {
+        // Prose has no code beneath it; comment-code-ratio would flag everything.
+        let dir = project(&[(".backspace.toml", "max_lines = 1\n")]);
+        let (out, code) = prose(dir.path(), "a\nb\nc\nd\ne\nf\ng\n", &[]);
+        assert_eq!(code, Some(0), "{out}");
+    }
+
+    #[test]
+    fn empty_input_is_clean() {
+        let dir = with_words("\"substrate\"");
+        assert_eq!(prose(dir.path(), "", &[]).1, Some(0));
+    }
+}

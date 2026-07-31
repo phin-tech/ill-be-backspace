@@ -161,6 +161,53 @@ fn subcommand(command: &Command, cli: &Cli) -> Result<u8> {
                 Ok(USAGE)
             }
         },
+        Command::Prose {
+            file,
+            max_line_words,
+            json,
+        } => {
+            let text = match file {
+                Some(p) => std::fs::read_to_string(p)
+                    .with_context(|| format!("failed to read {}", p.display()))?,
+                None => {
+                    let mut buf = String::new();
+                    std::io::Read::read_to_string(&mut std::io::stdin(), &mut buf)?;
+                    buf
+                }
+            };
+
+            let mut config = load_config(cli)?;
+            config.cli.max_line_words = *max_line_words;
+            let name = file
+                .as_deref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "<stdin>".to_string());
+            let cfg = config.resolve(Path::new(&name), "prose");
+
+            let violations = backspace::check_prose(&text, &cfg).map_err(anyhow::Error::msg)?;
+            let mut report = runner::Report {
+                files_checked: 1,
+                ..Default::default()
+            };
+            report.violations = violations
+                .into_iter()
+                .map(|mut v| {
+                    v.path = PathBuf::from(&name);
+                    v.language = "prose".to_string();
+                    v
+                })
+                .collect();
+
+            let mut out = anstream::stdout().lock();
+            let format = if *json {
+                report::Format::Json
+            } else {
+                report::Format::Text
+            };
+            report::write(&mut out, &report, format, false)?;
+            out.flush()?;
+            Ok(if report.errors() > 0 { VIOLATIONS } else { OK })
+        }
         Command::Config {
             action: ConfigAction::Show { path },
         } => {

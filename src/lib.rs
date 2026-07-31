@@ -24,6 +24,42 @@ pub use scan::{scan, CommentBlock, CommentKind, ScanOptions};
 
 use suppress::Scope;
 
+/// Checks plain prose with the same rules that govern comments.
+///
+/// Each line becomes its own block so findings carry accurate line numbers, and
+/// only the rules that make sense without code are applied — a comment:code
+/// ratio is meaningless when there is no code.
+pub fn check_prose(text: &str, cfg: &ResolvedConfig) -> Result<Vec<Violation>, String> {
+    let ctx = rules::Context::new(cfg)?;
+    let mut cfg = cfg.clone();
+    cfg.select = [rules::BANNED_PHRASE, rules::BLOCK_TOO_LONG]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    // A block budget over one line would double-report the line budget.
+    cfg.max_lines = usize::MAX;
+    cfg.max_words = None;
+    cfg.max_chars = None;
+
+    let mut out = Vec::new();
+    for (i, line) in text.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let block = CommentBlock {
+            start_line: i as u32 + 1,
+            end_line: i as u32 + 1,
+            text: vec![line.to_string()],
+            kind: CommentKind::Line,
+            following_code_lines: 0,
+            following_code: Vec::new(),
+            column: 1,
+        };
+        out.extend(rules::check_block(&block, &block.text, &cfg, &ctx));
+    }
+    Ok(out)
+}
+
 /// Checks one source string. Returns violations in source order.
 ///
 /// Panics only on an invalid banned-phrase pattern; use

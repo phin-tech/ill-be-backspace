@@ -117,6 +117,9 @@ backspace [PATHS...] [--max-lines N] [--max-ratio F] [--max-words N] [--max-char
 
 backspace [PATHS...] --audit        # list comments, never fails
 
+backspace prose [FILE]             # check writing, not source; stdin by default
+       [--max-line-words N] [--json]
+
 backspace config show <PATH>
 backspace languages
 backspace explain <RULE>

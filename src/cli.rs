@@ -34,6 +34,17 @@ pub enum Command {
     Languages,
     /// Explain what a rule checks and why.
     Explain { rule: String },
+    /// Check prose rather than source: reads a file or stdin and applies the
+    /// word list to plain writing. Same list that governs comments.
+    Prose {
+        /// File to read. Omit to read stdin.
+        file: Option<PathBuf>,
+        /// Maximum words on a single line.
+        #[arg(long)]
+        max_line_words: Option<usize>,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]

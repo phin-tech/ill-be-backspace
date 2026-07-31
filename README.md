@@ -295,6 +295,42 @@ commit time every day of the week:
 $ cp -r skill ~/.claude/skills/backspace
 ```
 
+### Catch It In Flight
+
+Two hooks in [`hooks/`](hooks/) move the check earlier still — from commit time
+to the moment the words are written. Copy
+[`.claude/settings.json.example`](.claude/settings.json.example) into
+`.claude/settings.json`:
+
+- **`backspace-hook.sh`** (`PostToolUse` on `Write|Edit`) — checks each file the
+  moment it's edited and hands the findings straight back to the agent, so the
+  comment gets fixed before anyone reads it. In a git repo it uses `--diff`, so
+  it only reports comments from the current session, not every legacy comment in
+  a file the agent happened to open.
+- **`backspace-chat-hook.sh`** (`Stop`) — runs your word list over the agent's
+  *own reply to you*. If you never want to read the word "substrate", it should
+  not reach you through chat either.
+
+Both surface findings as context by default rather than blocking, because
+comment length is a judgement call. Set `BACKSPACE_BLOCK=1` or
+`BACKSPACE_CHAT_BLOCK=1` if you'd rather they insist.
+
+One honest caveat on the chat hook: a `Stop` block forces another turn, it does
+not edit the message you already read. So blocking mode costs a round trip to
+fix wording after the fact — the non-blocking default, which teaches the agent
+for the *next* message, is usually the better trade.
+
+### Lint Any Prose
+
+The same word list works on plain writing, no source file required:
+
+```console
+$ echo "Let us delve into the substrate." | backspace prose
+<stdin>:1:1: error: banned-phrase: matches banned phrase `substrate`
+```
+
+That's what the chat hook uses under the hood.
+
 ## Under The Hood
 
 A clanker-rolled character state machine, one pass, no parser generators, no

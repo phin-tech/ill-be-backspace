@@ -11,6 +11,22 @@ failing a build that passed before.
 
 ## [Unreleased]
 
+### Added
+
+- `backspace prose`: checks plain writing rather than source, reading a file or
+  stdin, using the same word list that governs comments. Only the rules that
+  make sense without code are applied.
+- Claude Code hooks in `hooks/`. `backspace-hook.sh` (`PostToolUse`) reports
+  findings the moment a file is written, scoped with `--diff` so only the
+  current session's comments are raised. `backspace-chat-hook.sh` (`Stop`) runs
+  the word list over the assistant's own reply. Both report as context rather
+  than blocking by default.
+
+### Changed
+
+- The `banned-phrase` message reads "matches banned phrase" rather than "comment
+  matches banned phrase", since it now applies to prose as well as comments.
+
 ## [0.1.3] — 2026-07-29
 
 ### Added

@@ -309,7 +309,7 @@ fn banned_phrase(
                 block,
                 text,
                 cfg,
-                format!("comment matches banned phrase `{pattern}`"),
+                format!("matches banned phrase `{pattern}`"),
                 "This phrasing usually introduces narration rather than \
                  information. Delete it or state the fact directly."
                     .to_string(),
