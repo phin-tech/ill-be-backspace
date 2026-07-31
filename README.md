@@ -332,19 +332,19 @@ design note in `docs/harper-integration.md` was written by a model and scores
 information, never as proof.
 
 **Vocabulary — and here the folklore is simply wrong.** We measured every
-candidate word against 4.3M words of comment prose from Neovim, Emacs and
-WordPress, all written before any of this existed, and against 586k words of
-agent-written code. Rates per 100k comment words:
+candidate word against 5.7M words of comment prose from Neovim, Emacs, WordPress,
+Git, SQLite and Django, nearly all written before any of this existed, and
+against 587k words of agent-written code. Rates per 100k comment words:
 
 | phrase | human | agent | |
 |---|---|---|---|
-| `Note that` | 26.14 | 0.51 | humans use it **50x more** |
-| `In other words` | 1.05 | 0.00 | human only |
-| `not only X but Y` | 0.68 | 0.00 | human only |
-| `delve` | 0.05 | 0.00 | human only |
-| `stomping` | 0.07 | 0.51 | 7x |
-| `inert` | 0.35 | 4.95 | 14x |
-| `pathological` (outside its idiom) | 0.12 | 2.22 | 19x |
+| `Note that` | 26.84 | 0.51 | humans use it **50x more** |
+| `In other words` | 3.50 | 0.00 | human only |
+| `not only X but Y` | 0.63 | 0.00 | human only |
+| `delve` | 0.04 | 0.00 | human only |
+| `stomping` | 0.11 | 0.51 | 5x |
+| `pathological` (outside its idiom) | 0.12 | 2.22 | 18x |
+| `inert` | 0.26 | 4.94 | 19x |
 | `load-bearing` | 0.00 | 6.14 | **agent only** |
 
 So `llm-tells` finds *narration*, not authorship — worth flagging whoever wrote
@@ -366,8 +366,17 @@ every one is `pathological case`. The agent corpus stretches it over `caller`,
 `span`, `scoped history`. So the entry carries an exception list and the rule
 reads the *next word* before deciding.
 
-One honest limit: the agent corpus is seven times smaller, so "human only" on a
-phrase with two hits proves nothing. `Note that` isn't in that category.
+**The limit is diversity, not size.** `gate` measures 0.30 human against 44.32
+agent — 149x, larger than anything in the table — and it is still not a tic.
+Break the agent side down and it's orca at 46.8 and roux at 37.8, two related
+terminal apps by one author whose architecture is full of visibility and auth
+gates, while copperfield, also agent-written, uses it *zero* times. A real tic
+shows up in all three. What the ratio found was one author's vocabulary.
+
+So `gate` ships as advice rather than a ban, which is what the `note` severity
+exists for. And "human only" on a phrase with two hits proves nothing either —
+though `Note that`, with a thousand expected occurrences, is not in that
+category.
 
 All three work on writing as well as on code:
 

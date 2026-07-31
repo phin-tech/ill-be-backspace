@@ -179,16 +179,17 @@ impl Phrase {
 /// Phrases that mark comments written to sound thorough rather than to inform.
 ///
 /// **This preset finds narration, not authorship, and the measurement is
-/// unambiguous about it.** Per 100,000 comment words, across 4.3M words of
-/// Neovim, Emacs and WordPress against 586k words of agent-written code:
+/// unambiguous about it.** Per 100,000 comment words, across 5.7M words of
+/// Neovim, Emacs, WordPress, Git, SQLite and Django against 587k words of
+/// agent-written code:
 ///
 /// | phrase | human | agent |
 /// |---|---|---|
-/// | `Note that` | 26.14 | 0.51 |
-/// | `In other words` | 1.05 | 0.00 |
-/// | `not only X but Y` | 0.68 | 0.00 |
-/// | `Keep in mind that` | 0.40 | 0.00 |
-/// | `delve` | 0.05 | 0.00 |
+/// | `Note that` | 26.84 | 0.51 |
+/// | `In other words` | 3.50 | 0.00 |
+/// | `not only X but Y` | 0.63 | 0.00 |
+/// | `Keep in mind that` | 0.28 | 0.00 |
+/// | `delve` | 0.04 | 0.00 |
 ///
 /// Every one of them points the wrong way. `Note that` — the entry that
 /// produces more findings than the rest of the preset combined — appears fifty
@@ -314,15 +315,15 @@ pub fn preset_named(name: &str) -> Vec<Phrase> {
 /// Aimed at `backspace prose` and the chat hook more than at comments.
 ///
 /// Unlike [`llm_tells_preset`], every entry here earned its place against a
-/// control corpus. Rates per 100,000 comment words, 4.3M words of Neovim, Emacs
-/// and WordPress against 586k words of agent-written code:
+/// control corpus. Rates per 100,000 comment words, 5.7M words of Neovim, Emacs,
+/// WordPress, Git, SQLite and Django against 587k words of agent-written code:
 ///
 /// | word | human | agent | |
 /// |---|---|---|---|
 /// | `load-bearing` | 0.00 | 6.14 | agent only |
-/// | `pathological` (outside its idiom) | 0.12 | 2.22 | 19x |
-/// | `inert` | 0.35 | 4.95 | 14x |
-/// | `stomping` | 0.07 | 0.51 | 7x |
+/// | `inert` | 0.26 | 4.94 | 19x |
+/// | `pathological` (outside its idiom) | 0.12 | 2.22 | 18x |
+/// | `stomping` | 0.11 | 0.51 | 5x |
 ///
 /// What separates these from the folklore words is that they are metaphors
 /// standing in for a specific statement, and the specific statement is what a
@@ -343,11 +344,24 @@ pub fn preset_named(name: &str) -> Vec<Phrase> {
 /// follow — so this is all or nothing, and it is in. Drop it with
 /// `ignore = [...]` if your domain uses the idiom often.
 ///
-/// Two words the control corpus removed. `gate` is `is gated on`, `auth gate`,
-/// `visibility gate` — a conditional guard, a thing rather than a metaphor.
-/// `headline` appears 249 times in Emacs, because it is org-mode's word for a
-/// heading. Domain vocabulary always beats a tic list, and no amount of
-/// agent-corpus counting would have shown either of them.
+/// Two words the control corpus removed, and one of them is the warning label
+/// for this whole method.
+///
+/// `headline` is easy: 4.34 per 100k in human code against 0.68 in agent code,
+/// because it is org-mode's word for a heading and Emacs uses it 249 times.
+///
+/// `gate` is not easy. It measures 0.30 human against 44.32 agent — 149x, the
+/// largest ratio in either preset, and it is still not a tic. Broken down, the
+/// agent corpus is orca at 46.8 and roux at 37.8, two closely-related terminal
+/// applications by one author whose architecture is full of visibility and auth
+/// gates, while copperfield — also agent-written, in Go — uses it zero times. A
+/// real tic would appear in all three. What the ratio found was one author's
+/// domain vocabulary, and the corpus was too narrow to tell the difference.
+///
+/// The limit is diversity, not size: 5.7M human words against what is
+/// effectively two related repositories. So `gate` ships as advice, which is
+/// what the `note` severity is for — a ratio that cannot distinguish a tic from
+/// a domain has no business failing a build.
 pub fn agent_tics_preset() -> Vec<Phrase> {
     let words = [
         // Reflexive agreement. None of these ever document anything.
