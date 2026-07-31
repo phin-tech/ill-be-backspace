@@ -99,8 +99,8 @@ failing a build that passed before.
   A term in backticks is named, not used. Unpaired backticks produce no span, so
   a stray one cannot silence a block.
 - `llm-tells` no longer claims to detect a machine. Measured against the human
-  control corpus, its entries point the other way: `Note that` appears 26.14
-  times per 100k comment words in human code and 0.51 in agent-written code, and
+  control corpus, its entries point the other way: `Note that` appears 26.96
+  times per 100k comment words in human code and 0.26 in agent-written code, and
   it produces more findings than the rest of the preset combined. The preset
   still flags padding, which is worth flagging whoever wrote it; for authorship,
   use `agent-tics`.
