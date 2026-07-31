@@ -385,6 +385,10 @@ Got a word you never want to see again? Put it in
 words = ["substrate", "delve into", "leverage", "seamless", "robust"]
 ```
 
+A word inside backticks is never flagged. Writing `` `utilize` `` to say you'd
+rather not read it is naming the word, not using it — which is how a style guide,
+a changelog and this README all talk about their own word lists.
+
 `words` are literal, not regexes — they're escaped for you, matched
 whole-word and case-insensitively. So `substrate` won't fire on `substrates`,
 and `c++` is a word rather than a syntax error. If you *want* a regex, use

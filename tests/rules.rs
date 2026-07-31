@@ -1023,6 +1023,52 @@ mod presets {
     }
 
     #[test]
+    fn a_quoted_word_is_named_not_used() {
+        let cfg = with(vec![Phrase::word("utilize")]);
+        assert!(check(
+            "# Prefer `use` over `utilize` here.\nx = 1\n",
+            "python",
+            &cfg
+        )
+        .is_empty());
+        assert_eq!(
+            check("# We utilize a cache.\nx = 1\n", "python", &cfg).len(),
+            1
+        );
+    }
+
+    #[test]
+    fn a_stray_backtick_does_not_silence_the_block() {
+        let cfg = with(vec![Phrase::word("utilize")]);
+        assert_eq!(
+            check(
+                "# A ` stray tick, and we utilize it.\nx = 1\n",
+                "python",
+                &cfg
+            )
+            .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn no_preset_lists_a_word_twice() {
+        // A duplicate reports the same match twice, and if the two entries
+        // disagree about severity the reader gets both an error and a note for
+        // one word. Caught in the wild by running the tool over this repo.
+        for name in backspace::rules::PHRASE_PRESETS {
+            let mut seen: Vec<String> = backspace::rules::preset_named(name)
+                .iter()
+                .map(|p| p.display.to_lowercase())
+                .collect();
+            let before = seen.len();
+            seen.sort();
+            seen.dedup();
+            assert_eq!(seen.len(), before, "{name} lists a phrase twice");
+        }
+    }
+
+    #[test]
     fn presets_are_all_reachable_by_name() {
         for name in backspace::rules::PHRASE_PRESETS {
             assert!(

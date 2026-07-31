@@ -624,7 +624,7 @@ fn apply(rc: &mut ResolvedConfig, s: &Settings, layer: Layer, prov: &mut Provena
         rc.banned_phrases = phrases;
         prov.set("banned_phrases", layer);
 
-        // A phrase list with nothing selected would be inert; turn the rule on.
+        // A phrase list with nothing selected would do nothing; turn the rule on.
         if !rc.banned_phrases.is_empty() && !rc.ignore.contains(rules::BANNED_PHRASE) {
             rc.select.insert(rules::BANNED_PHRASE.to_string());
         }

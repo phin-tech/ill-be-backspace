@@ -366,11 +366,9 @@ pub fn agent_tics_preset() -> Vec<Phrase> {
         // Metaphor standing in for a measurement.
         "the crux",
         "load-bearing",
-        "inert",
         "belt and suspenders",
         "spine",
         "lever",
-        "soak",
         "stomping",
     ];
 
@@ -851,9 +849,10 @@ fn banned_phrase(
     ctx: &Context,
 ) -> Vec<Violation> {
     let joined = text.join("\n");
+    let quoted = quoted_spans(&joined);
     ctx.phrases
         .iter()
-        .filter(|(p, re)| matches_outside_its_idiom(p, re, &joined))
+        .filter(|(p, re)| real_use(p, re, &joined, &quoted))
         .map(|(phrase, _)| {
             let help = match (&phrase.suggest, &phrase.note) {
                 (Some(plain), _) => format!(
@@ -885,13 +884,16 @@ fn banned_phrase(
         .collect()
 }
 
-/// Whether the phrase appears somewhere its `except_before` list does not
-/// excuse. A phrase with no exceptions is just a match.
-fn matches_outside_its_idiom(phrase: &Phrase, re: &Regex, text: &str) -> bool {
-    if phrase.except_before.is_empty() {
-        return re.is_match(text);
-    }
+/// Whether a phrase is actually used here, rather than mentioned in quotes or
+/// excused by its own idiom. A phrase with no exceptions is just a match.
+fn real_use(phrase: &Phrase, re: &Regex, text: &str, quoted: &[(usize, usize)]) -> bool {
     re.find_iter(text).any(|m| {
+        if quoted.iter().any(|(a, b)| m.start() > *a && m.end() <= *b) {
+            return false;
+        }
+        if phrase.except_before.is_empty() {
+            return true;
+        }
         let next = text[m.end()..]
             .split_whitespace()
             .next()
@@ -902,6 +904,16 @@ fn matches_outside_its_idiom(phrase: &Phrase, re: &Regex, text: &str) -> bool {
             .unwrap_or_default();
         !phrase.except_before.contains(&next)
     })
+}
+
+/// Byte ranges enclosed in backticks, which hold quotations rather than prose.
+///
+/// Writing *about* a word list is the case this exists for: a comment saying
+/// avoid `utilize` here is naming the word, not using it. Unpaired backticks
+/// produce no span, so a stray one cannot silence the rest of a block.
+fn quoted_spans(text: &str) -> Vec<(usize, usize)> {
+    let ticks: Vec<usize> = text.match_indices('`').map(|(i, _)| i).collect();
+    ticks.chunks_exact(2).map(|p| (p[0], p[1])).collect()
 }
 
 pub(crate) fn suppression_needs_reason(

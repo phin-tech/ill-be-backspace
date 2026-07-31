@@ -87,6 +87,13 @@ failing a build that passed before.
 
 ### Changed
 
+- `banned-phrase` no longer fires on a word inside backticks. Writing *about* a
+  word list is the case this exists for, and it was the tool's worst false
+  positive: every one of the 15 findings on this project's own README was the
+  README quoting its own examples, and running the new presets over this
+  repository made an error of the comment documenting the `pathological` entry.
+  A term in backticks is named, not used. Unpaired backticks produce no span, so
+  a stray one cannot silence a block.
 - `llm-tells` no longer claims to detect a machine. Measured against the human
   control corpus, its entries point the other way: `Note that` appears 26.14
   times per 100k comment words in human code and 0.51 in agent-written code, and

@@ -40,4 +40,5 @@ severity = "error"
 exclude = ["tests/fixtures/**", "target/**"]
 
 [tool.backspace.rules.banned-phrase]
-preset = "llm-tells"
+# Different jobs: padding, and the tics measured against a human corpus.
+preset = ["llm-tells", "agent-tics"]
