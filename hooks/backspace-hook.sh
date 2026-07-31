@@ -54,6 +54,10 @@ else
 fi
 [ -n "$report" ] || exit 0
 
+# A `note` says MAY leave as is. Interrupting to relay one would contradict it,
+# so only findings that ask for a change are worth a round trip.
+report=$(jq '.violations |= map(select(.severity != "note"))
+             | .summary.violations = (.violations | length)' <<<"$report")
 count=$(jq -r '.summary.violations // 0' <<<"$report")
 [ "$count" -gt 0 ] 2>/dev/null || exit 0
 

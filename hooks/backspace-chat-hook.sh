@@ -48,7 +48,10 @@ cd "${cwd:-.}" 2>/dev/null || exit 0
 report=$(printf '%s' "$message" | "$bin" prose --json 2>/dev/null)
 [ -n "$report" ] || exit 0
 
-count=$(jq -r '.summary.violations // 0' <<<"$report")
+# A `note` says MAY leave as is, and an advisory about a word's proper sense is
+# not "banned wording". Relaying one would contradict its own severity.
+report=$(jq '.violations |= map(select(.severity != "note"))' <<<"$report")
+count=$(jq -r '.violations | length' <<<"$report")
 [ "$count" -gt 0 ] 2>/dev/null || exit 0
 
 detail=$(jq -r '[.violations[] | "  line \(.start_line): \(.message)"] | join("\n")' <<<"$report")
