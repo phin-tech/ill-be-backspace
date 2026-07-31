@@ -72,7 +72,7 @@ That's it. That's the product. And folks, it is **fast**.
 ```yaml
 repos:
   - repo: https://github.com/phin-tech/ill-be-backspace
-    rev: v0.1.3
+    rev: v0.2.0
     hooks:
       - id: backspace
 ```

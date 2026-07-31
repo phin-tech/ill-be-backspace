@@ -9,7 +9,7 @@ While the version is below 1.0, rule defaults and thresholds may change in a
 minor release. New rules always ship disabled, so an upgrade will not start
 failing a build that passed before.
 
-## [Unreleased]
+## [0.2.0] — 2026-07-31
 
 ### Added
 
@@ -27,6 +27,13 @@ failing a build that passed before.
   did not survive were cut rather than shipped: `the crux`, `soak`, `spine` and
   `lever` sit at zero in agent code as well as human code, and `stomping` is one
   repository.
+- `unapproved-word` rule: flags comment prose outside a configured vocabulary.
+  Identifiers from the whole file are approved automatically, so a project's own
+  terminology needs no entry. Ships a `plain-code` preset built on the EF 3000
+  most-common English words plus systems terms. **Off by default, and currently
+  a starting point rather than a finished vocabulary** — measured against three
+  real repositories it still reports roughly 1,100 findings, mostly inflections
+  (`sorted` where `sort` is listed). A stemmer would close most of that gap.
 - `plain-words` preset: `utilize` → `use`, `in order to` → `to`. The finding
   names the replacement rather than only the offence.
 - Advisory entries, which report at `note` and explain what a word is properly
@@ -111,14 +118,6 @@ failing a build that passed before.
   matches banned phrase", since it now applies to prose as well as comments.
 - `llm-tells` findings quote the phrase a reader recognises rather than the
   regex behind it: `Note that` instead of `\bNote that\b`.
-
-- `unapproved-word` rule: flags comment prose outside a configured vocabulary.
-  Identifiers from the whole file are approved automatically, so a project's own
-  terminology needs no entry. Ships a `plain-code` preset built on the EF 3000
-  most-common English words plus systems terms. **Off by default, and currently
-  a starting point rather than a finished vocabulary** — measured against three
-  real repositories it still reports roughly 1,100 findings, mostly inflections
-  (`sorted` where `sort` is listed). A stemmer would close most of that gap.
 
 ### Fixed
 
