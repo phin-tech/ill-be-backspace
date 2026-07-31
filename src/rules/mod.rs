@@ -179,21 +179,21 @@ impl Phrase {
 /// Phrases that mark comments written to sound thorough rather than to inform.
 ///
 /// **This preset finds narration, not authorship, and the measurement is
-/// unambiguous about it.** Per 100,000 comment words, across 5.7M words of
-/// Neovim, Emacs, WordPress, Git, SQLite and Django against 587k words of
-/// agent-written code:
+/// unambiguous about it.** Per 100,000 comment words, across 5.6M words of
+/// Neovim, Emacs, WordPress, Git, SQLite and Django against 1.5M words from five
+/// agent-written repositories by two unrelated authors:
 ///
 /// | phrase | human | agent |
 /// |---|---|---|
-/// | `Note that` | 26.84 | 0.51 |
-/// | `In other words` | 3.50 | 0.00 |
-/// | `not only X but Y` | 0.63 | 0.00 |
+/// | `Note that` | 26.96 | 0.26 |
+/// | `In other words` | 3.54 | 0.00 |
+/// | `not only X but Y` | 0.64 | 0.00 |
 /// | `Keep in mind that` | 0.28 | 0.00 |
 /// | `delve` | 0.04 | 0.00 |
 ///
 /// Every one of them points the wrong way. `Note that` — the entry that
 /// produces more findings than the rest of the preset combined — appears fifty
-/// times more often in human code. The folklore words are folklore: `delve` and
+/// a hundred times more often in human code. The folklore words are folklore: `delve` and
 /// `In conclusion` did not appear in the agent corpus at all.
 ///
 /// So keep this preset for what it does do — flagging phrasing that pads a
@@ -315,53 +315,33 @@ pub fn preset_named(name: &str) -> Vec<Phrase> {
 /// Aimed at `backspace prose` and the chat hook more than at comments.
 ///
 /// Unlike [`llm_tells_preset`], every entry here earned its place against a
-/// control corpus. Rates per 100,000 comment words, 5.7M words of Neovim, Emacs,
-/// WordPress, Git, SQLite and Django against 587k words of agent-written code:
+/// control corpus: 5.6M comment words of Neovim, Emacs, WordPress, Git, SQLite
+/// and Django, against 1.5M words from five agent-written repositories by two
+/// unrelated authors. Rates per 100,000 comment words, and the per-repository
+/// breakdown, because an aggregate hides everything that matters:
 ///
-/// | word | human | agent | |
-/// |---|---|---|---|
-/// | `load-bearing` | 0.00 | 6.14 | agent only |
-/// | `inert` | 0.26 | 4.94 | 19x |
-/// | `pathological` (outside its idiom) | 0.12 | 2.22 | 18x |
-/// | `stomping` | 0.11 | 0.51 | 5x |
+/// | word | human | agent | beads | gastown | orca | roux | copperfield |
+/// |---|---|---|---|---|---|---|---|
+/// | `load-bearing` | 0.00 | 3.44 | 3.2 | 0.0 | 6.3 | 0.0 | 7.2 |
+/// | `pathological` (outside its idiom) | 0.12 | 0.97 | 0.4 | 0.5 | 2.8 | 4.2 | 0.0 |
 ///
-/// What separates these from the folklore words is that they are metaphors
-/// standing in for a specific statement, and the specific statement is what a
-/// comment is for.
+/// A tic has to survive the breakdown. `load-bearing` appears in three of the
+/// five, under both authors, and never once in 5.6M words of human prose;
+/// `pathological` appears in four. Four entries that did not survive were
+/// removed: `the crux`, `soak`, `spine` and `lever` measure at or near zero in
+/// agent code as well as human code, so they discriminate nothing, and
+/// `stomping` is one repository.
 ///
-/// Counting alone could not have settled any of it. The agent corpus is
-/// agent-written throughout, so a high count there is as likely to be the tic
-/// repeating as the word being ordinary — `load-bearing` appears 36 times and
-/// every one is the same move. Only the human control makes the count mean
-/// something.
+/// **The corpus has a confound worth stating plainly.** Every agent-written
+/// repository available is developer tooling for agents, while the human corpus
+/// is editors, databases, a CMS and a version-control system. Any word belonging
+/// to the agent-tooling genre will look like a tic. `gate` is the proof: 0.30
+/// human against 58.89 agent, 195x, the largest ratio anywhere in this file —
+/// and beads has a `bd gate` command, orca has visibility and auth gates. It is
+/// a domain noun in both, under different authors. It ships as advice.
 ///
-/// `pathological` and `inert` are the close calls. `pathological input` is a
-/// fixed idiom from the algorithms literature and legitimate; `pathological
-/// caller`, `pathological span`, `pathological scoped history` are the idiom
-/// stretched over any noun to hand, and they outnumber it four to two. The
-/// exception cannot be expressed as a pattern — Rust's `regex` has no
-/// lookaround, so `pathological` cannot be matched only when `input` does not
-/// follow — so this is all or nothing, and it is in. Drop it with
-/// `ignore = [...]` if your domain uses the idiom often.
-///
-/// Two words the control corpus removed, and one of them is the warning label
-/// for this whole method.
-///
-/// `headline` is easy: 4.34 per 100k in human code against 0.68 in agent code,
-/// because it is org-mode's word for a heading and Emacs uses it 249 times.
-///
-/// `gate` is not easy. It measures 0.30 human against 44.32 agent — 149x, the
-/// largest ratio in either preset, and it is still not a tic. Broken down, the
-/// agent corpus is orca at 46.8 and roux at 37.8, two closely-related terminal
-/// applications by one author whose architecture is full of visibility and auth
-/// gates, while copperfield — also agent-written, in Go — uses it zero times. A
-/// real tic would appear in all three. What the ratio found was one author's
-/// domain vocabulary, and the corpus was too narrow to tell the difference.
-///
-/// The limit is diversity, not size: 5.7M human words against what is
-/// effectively two related repositories. So `gate` ships as advice, which is
-/// what the `note` severity is for — a ratio that cannot distinguish a tic from
-/// a domain has no business failing a build.
+/// So the numbers separate metaphor from vocabulary only when the collocations
+/// are read too. Counting alone would have banned `gate` twice over.
 pub fn agent_tics_preset() -> Vec<Phrase> {
     let words = [
         // Reflexive agreement. None of these ever document anything.
@@ -378,12 +358,8 @@ pub fn agent_tics_preset() -> Vec<Phrase> {
         "clear picture",
         "honest caveat",
         // Metaphor standing in for a measurement.
-        "the crux",
         "load-bearing",
         "belt and suspenders",
-        "spine",
-        "lever",
-        "stomping",
     ];
 
     // Only a tic outside its idiom. Emacs uses `pathological` ten times and

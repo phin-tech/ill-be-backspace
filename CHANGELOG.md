@@ -19,10 +19,14 @@ failing a build that passed before.
   it may decline. `note` never fails a build.
 - `agent-tics` preset: phrasing that marks an assistant talking about its own
   work. Unlike `llm-tells`, every entry was measured against a human control
-  corpus — 4.3M comment words of Neovim, Emacs and WordPress — and kept only if
-  it appeared more in agent-written code. `load-bearing` (agent only),
-  `pathological` outside its idiom (19x), `inert` (14x), `stomping` (7x), plus
-  the reflexive agreement an assistant opens with.
+  corpus — 5.6M comment words of Neovim, Emacs, WordPress, Git, SQLite and
+  Django — against 1.5M words from five agent-written repositories by two
+  unrelated authors, and kept only if it survived a per-repository breakdown.
+  `load-bearing` appears under both authors and never once in the human corpus;
+  `pathological` outside its idiom appears in four of the five. Candidates that
+  did not survive were cut rather than shipped: `the crux`, `soak`, `spine` and
+  `lever` sit at zero in agent code as well as human code, and `stomping` is one
+  repository.
 - `plain-words` preset: `utilize` → `use`, `in order to` → `to`. The finding
   names the replacement rather than only the offence.
 - Advisory entries, which report at `note` and explain what a word is properly

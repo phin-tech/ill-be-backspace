@@ -332,20 +332,19 @@ design note in `docs/harper-integration.md` was written by a model and scores
 information, never as proof.
 
 **Vocabulary — and here the folklore is simply wrong.** We measured every
-candidate word against 5.7M words of comment prose from Neovim, Emacs, WordPress,
+candidate word against 5.6M words of comment prose from Neovim, Emacs, WordPress,
 Git, SQLite and Django, nearly all written before any of this existed, and
-against 587k words of agent-written code. Rates per 100k comment words:
+against 1.5M words from five agent-written repositories by two unrelated
+authors. Rates per 100k comment words:
 
 | phrase | human | agent | |
 |---|---|---|---|
-| `Note that` | 26.84 | 0.51 | humans use it **50x more** |
-| `In other words` | 3.50 | 0.00 | human only |
-| `not only X but Y` | 0.63 | 0.00 | human only |
+| `Note that` | 26.96 | 0.26 | humans use it **100x more** |
+| `In other words` | 3.54 | 0.00 | human only |
+| `not only X but Y` | 0.64 | 0.00 | human only |
 | `delve` | 0.04 | 0.00 | human only |
-| `stomping` | 0.11 | 0.51 | 5x |
-| `pathological` (outside its idiom) | 0.12 | 2.22 | 18x |
-| `inert` | 0.26 | 4.94 | 19x |
-| `load-bearing` | 0.00 | 6.14 | **agent only** |
+| `pathological` (outside its idiom) | 0.12 | 0.97 | 8x |
+| `load-bearing` | 0.00 | 3.44 | **agent only** |
 
 So `llm-tells` finds *narration*, not authorship — worth flagging whoever wrote
 it, but not evidence of anything. What actually discriminates is metaphor
@@ -366,17 +365,28 @@ every one is `pathological case`. The agent corpus stretches it over `caller`,
 `span`, `scoped history`. So the entry carries an exception list and the rule
 reads the *next word* before deciding.
 
-**The limit is diversity, not size.** `gate` measures 0.30 human against 44.32
-agent — 149x, larger than anything in the table — and it is still not a tic.
-Break the agent side down and it's orca at 46.8 and roux at 37.8, two related
-terminal apps by one author whose architecture is full of visibility and auth
-gates, while copperfield, also agent-written, uses it *zero* times. A real tic
-shows up in all three. What the ratio found was one author's vocabulary.
+**An aggregate hides everything that matters, so every candidate gets a
+per-repository breakdown.** A tic has to survive it:
 
-So `gate` ships as advice rather than a ban, which is what the `note` severity
-exists for. And "human only" on a phrase with two hits proves nothing either —
-though `Note that`, with a thousand expected occurrences, is not in that
-category.
+| word | human | beads | gastown | orca | roux | copperfield |
+|---|---|---|---|---|---|---|
+| `load-bearing` | 0.00 | 3.2 | 0.0 | 6.3 | 0.0 | 7.2 |
+| `pathological` | 0.12 | 0.4 | 0.5 | 2.8 | 4.2 | 0.0 |
+| `gate` | 0.30 | **101.3** | 24.4 | 46.8 | 37.8 | 0.0 |
+
+`load-bearing` appears under both authors and never once in 5.6M words of human
+prose. Four candidates that *didn't* survive were cut: `the crux`, `soak`,
+`spine` and `lever` sit at zero in agent code too, so they discriminate nothing.
+
+And `gate` — 195x, the biggest ratio we ever measured — is **still not a tic**.
+beads has a literal `bd gate` command; orca has visibility and auth gates. It's a
+domain noun under both authors. Which points at the confound worth stating: every
+agent-written codebase available is *developer tooling for agents*, a genre that
+is about gating, while the human corpus is editors, databases and a CMS. Any word
+belonging to that genre will look like a tic.
+
+So `gate` ships as advice, not a ban. Counting alone would have banned it twice
+over; only reading the collocations caught it.
 
 All three work on writing as well as on code:
 
